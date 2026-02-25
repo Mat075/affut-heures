@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#3E1111">
+  <title>L'Affût — Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg:         #F5F2EE;
+      --surface:    #FFFFFF;
+      --primary:    #3E1111;
+      --primary-lt: #5C1A1A;
+      --accent:     #B07D3A;
+      --text:       #1C1410;
+      --text-muted: #8A7A6A;
+      --border:     #E2D8CC;
+      --success:    #2E6B47;
+      --danger:     #B44040;
+      --r:          10px;
+      --shadow:     0 2px 8px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── LOGIN ─────────────────────────────────── */
+    .login-wrap {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 20px;
+    }
+    .login-box {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+      width: 100%; max-width: 360px;
+      text-align: center;
+    }
+    .login-logo { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-muted); }
+    .login-title { font-size: 26px; font-weight: 800; color: var(--primary); margin: 8px 0 28px; }
+    .login-input {
+      width: 100%; padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px; font-size: 16px;
+      margin-bottom: 14px;
+      background: var(--bg);
+    }
+    .login-input:focus { outline: none; border-color: var(--primary); }
+    .login-btn {
+      width: 100%; padding: 15px;
+      background: var(--primary); color: white;
+      border: none; border-radius: 10px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+    .login-err { color: var(--danger); font-size: 14px; margin-top: 10px; display: none; }
+
+    /* ── HEADER ────────────────────────────────── */
+    .header {
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 60px;
+    }
+    .header-brand { font-size: 16px; font-weight: 800; }
+    .header-sub   { font-size: 11px; opacity: 0.6; letter-spacing: 2px; text-transform: uppercase; }
+    .header-btns  { display: flex; gap: 10px; }
+
+    /* ── LAYOUT ────────────────────────────────── */
+    .layout { display: flex; min-height: calc(100vh - 60px); }
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 20px;
+      font-size: 14px; font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .nav-item:hover { background: var(--bg); color: var(--text); }
+    .nav-item.active { border-left-color: var(--primary); color: var(--primary); background: #F8F0EE; }
+    .nav-icon { font-size: 18px; width: 24px; text-align: center; }
+    .content { flex: 1; padding: 24px; overflow-x: auto; }
+
+    /* ── PANELS ────────────────────────────────── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .panel-title {
+      font-size: 22px; font-weight: 800;
+      color: var(--primary); margin-bottom: 20px;
+    }
+
+    /* ── STAT CARDS ────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; }
+    .stat-value { font-size: 32px; font-weight: 900; color: var(--primary); }
+    .stat-sub   { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── FILTERS ────────────────────────────────── */
+    .filters {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      box-shadow: var(--shadow);
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); }
+    .filter-control {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: var(--bg);
+      min-width: 150px;
+    }
+    .filter-control:focus { outline: none; border-color: var(--primary); }
+
+    /* ── BUTTONS ───────────────────────────────── */
+    .btn {
+      padding: 9px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.88; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-accent  { background: var(--accent);  color: white; }
+    .btn-danger  { background: var(--danger);  color: white; }
+    .btn-ghost   { background: var(--border);  color: var(--text-muted); }
+    .btn-sm      { padding: 5px 12px; font-size: 12px; }
+
+    /* ── TABLE ──────────────────────────────────── */
+    .table-wrap {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    thead th {
+      background: #FAF7F4;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid #F5F0EA; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #FDF9F6; }
+    tbody td { padding: 12px 16px; font-size: 14px; vertical-align: top; }
+    .td-name   { font-weight: 600; }
+    .td-time   { font-weight: 700; color: var(--primary); white-space: nowrap; }
+    .td-dur    { color: var(--accent); font-weight: 700; }
+    .td-act    { }
+    .td-par    { color: var(--text-muted); font-size: 13px; }
+    .td-com    { color: var(--text-muted); font-style: italic; font-size: 13px; max-width: 180px; }
+    .badge {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .badge-done   { background: #D4EDDA; color: var(--success); }
+    .badge-draft  { background: #FFF3CD; color: #856404; }
+    .empty-table  { text-align: center; padding: 40px; color: var(--text-muted); font-size: 15px; }
+    .loading-table{ text-align: center; padding: 40px; color: var(--text-muted); }
+
+    /* ── EDIT INLINE ─────────────────────────────── */
+    .edit-input {
+      width: 100%; padding: 6px 8px;
+      border: 1.5px solid var(--primary);
+      border-radius: 6px; font-size: 13px;
+    }
+
+    /* ── EMPLOYEE PANEL ─────────────────────────── */
+    .emp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .emp-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .emp-name { font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
+    .emp-slug {
+      font-size: 12px; color: var(--text-muted);
+      font-family: monospace; margin-bottom: 12px;
+    }
+    .emp-url {
+      font-size: 12px; background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px;
+      word-break: break-all; color: var(--primary);
+      margin-bottom: 12px;
+    }
+    .emp-actions { display: flex; gap: 8px; }
+
+    /* ── ADD EMPLOYEE FORM ────────────────────────── */
+    .add-emp-form {
+      background: var(--surface);
+      border: 2px solid var(--primary);
+      border-radius: var(--r);
+      padding: 24px;
+      max-width: 480px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+    .form-row { display: flex; gap: 12px; margin-bottom: 14px; }
+    .form-row input { flex: 1; padding: 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; background: var(--bg); }
+    .form-row input:focus { outline: none; border-color: var(--primary); }
+
+    /* ── PARCEL PANEL ───────────────────────────── */
+    .parcel-table table { min-width: 500px; }
+
+    /* ── MODAL ──────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 20px;
+    }
+    .modal {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 28px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-title { font-size: 18px; font-weight: 800; margin-bottom: 18px; color: var(--primary); }
+    .modal-input {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 15px; margin-bottom: 12px;
+      background: var(--bg);
+    }
+    .modal-input:focus { outline: none; border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
+
+    /* ── UTILS ──────────────────────────────────── */
+    .hidden { display: none !important; }
+    .text-right { text-align: right; }
+    .flex-end { display: flex; justify-content: flex-end; }
+    .gap-2 { display: flex; gap: 8px; align-items: center; }
+
+    /* ── TOAST ──────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(90px);
+      background: #1C1410EE; color: white;
+      padding: 12px 22px; border-radius: 28px;
+      font-size: 14px; font-weight: 600;
+      transition: transform 0.3s;
+      z-index: 999; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 640px) {
+      .sidebar { display: none; }
+      .content { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN ─────────────────────────────────────── -->
+<div id="login-wrap" class="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">Domaine L'Affût</div>
+    <div class="login-title">Administration</div>
+    <input type="password" id="pwd" class="login-input" placeholder="Mot de passe" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Se connecter</button>
+    <div class="login-err" id="login-err">Mot de passe incorrect.</div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ───────────────────────────────────── -->
+<div id="admin-app" class="hidden">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <div class="header-brand">L'Affût — Admin</div>
+      <div class="header-sub">Isabelle</div>
+    </div>
+    <div class="header-btns">
+      <button class="btn btn-accent" onclick="exportExcel()">⬇ Export Excel</button>
+      <button class="btn btn-ghost" onclick="doLogout()">Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="nav-item active" data-panel="dashboard" onclick="nav('dashboard')">
+        <span class="nav-icon">📊</span> Tableau de bord
+      </div>
+      <div class="nav-item" data-panel="saisies" onclick="nav('saisies')">
+        <span class="nav-icon">📋</span> Toutes les saisies
+      </div>
+      <div class="nav-item" data-panel="employes" onclick="nav('employes')">
+        <span class="nav-icon">👤</span> Salariés
+      </div>
+      <div class="nav-item" data-panel="parcelles" onclick="nav('parcelles')">
+        <span class="nav-icon">🍇</span> Parcelles
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ─── DASHBOARD ─────────────────────────── -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="panel-title">Tableau de bord</div>
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Saisies aujourd'hui</div>
+            <div class="stat-value" id="stat-today">—</div>
+            <div class="stat-sub" id="stat-today-sub"></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cette semaine</div>
+            <div class="stat-value" id="stat-week">—</div>
+            <div class="stat-sub">saisies validées</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total heures semaine</div>
+            <div class="stat-value" id="stat-hours">—</div>
+            <div class="stat-sub">toutes équipes</div>
+          </div>
+        </div>
+
+        <div class="panel-title" style="font-size:16px;margin-bottom:14px;">Saisies d'aujourd'hui</div>
+        <div class="table-wrap">
+          <table id="today-table">
+            <thead><tr>
+              <th>Salarié</th>
+              <th>Séquences</th>
+              <th>Total</th>
+              <th>Statut</th>
+            </tr></thead>
+            <tbody id="today-tbody">
+              <tr><td colspan="4" class="loading-table">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── TOUTES SAISIES ────────────────────── -->
+      <div class="panel" id="panel-saisies">
+        <div class="panel-title">Toutes les saisies</div>
+
+        <div class="filters">
+          <div class="filter-group">
+            <div class="filter-label">Date début</div>
+            <input type="date" id="f-date-start" class="filter-control" oninput="loadSaisies()">
+          </div>
+          <div class="filter-group">
+            <div class="filter-label">Date fin</div>
+            <input type="date" id="f-date-end" class="filter-control" oninput="loadSaisies()">
+          </div>
+          <div class="filter-group">
+            <div class="filter-label">Salarié</div>
+            <select id="f-emp" class="filter-control" onchange="loadSaisies()">
+              <option value="">Tous</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <div class="filter-label">Activité</div>
+            <select id="f-act" class="filter-control" onchange="loadSaisies()">
+              <option value="">Toutes</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Date</th>
+              <th>Salarié</th>
+              <th>Début → Fin</th>
+              <th>Durée</th>
+              <th>Activité</th>
+              <th>Parcelle</th>
+              <th>Commentaire</th>
+              <th>Statut</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody id="saisies-tbody">
+              <tr><td colspan="9" class="loading-table">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="saisies-count" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:right;"></div>
+      </div>
+
+      <!-- ─── SALARIÉS ──────────────────────────── -->
+      <div class="panel" id="panel-employes">
+        <div class="panel-title">Gestion des salariés</div>
+
+        <!-- Add form -->
+        <div class="add-emp-form">
+          <div style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:14px;">Ajouter un salarié</div>
+          <div class="form-row">
+            <input type="text"  id="new-fname" placeholder="Prénom" oninput="updateSlug()">
+            <input type="text"  id="new-lname" placeholder="NOM"    oninput="updateSlug()">
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            Lien généré : <span id="slug-preview" style="font-family:monospace;color:var(--primary);">—</span>
+          </div>
+          <button class="btn btn-primary" onclick="addEmployee()">+ Créer le salarié</button>
+        </div>
+
+        <div class="emp-grid" id="emp-grid">
+          <div style="color:var(--text-muted);">Chargement…</div>
+        </div>
+      </div>
+
+      <!-- ─── PARCELLES ─────────────────────────── -->
+      <div class="panel parcel-table" id="panel-parcelles">
+        <div class="panel-title">Gestion des parcelles</div>
+        <div class="flex-end" style="margin-bottom:14px;">
+          <button class="btn btn-primary" onclick="openAddParcel()">+ Ajouter une parcelle</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Lieu-dit</th>
+              <th>N° CVI</th>
+              <th>Cépage</th>
+              <th>Actif</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody id="parcels-tbody">
+              <tr><td colspan="5" class="loading-table">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /layout -->
+</div><!-- /admin-app -->
+
+<!-- ── MODAL ─────────────────────────────────────── -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Action</div>
+    <div id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFIG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SUPABASE_URL = 'https://wljibsxwzbfaeshthcku.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsamlic3h3emJmYWVzaHRoY2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjgxMzYsImV4cCI6MjA4NzU0NDEzNn0.IqCbjx2k2iLfdSXw97Dl2dVqXmOrpUVTdO_Pzo0yRFk';
+const ADMIN_PASS   = 'affut2026'; // ← À changer !
+const BASE_URL     = location.origin + location.pathname.replace('admin.html','');
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const A = { employees: [], activities: [], parcels: [], allSeqs: [] };
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const DAYS   = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+const MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+function p2(n) { return String(n).padStart(2,'0'); }
+function todayISO() {
+  const d=new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function mondayISO() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const day = d.getDay(); const diff = (day===0?-6:1-day);
+  d.setDate(d.getDate()+diff);
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function fmtDate(iso) {
+  const d=new Date(iso+'T12:00:00');
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+function fmtTime(t) { return t?t.substring(0,5):'--:--'; }
+function calcMin(s,e) {
+  const [sh,sm]=s.substring(0,5).split(':').map(Number);
+  const [eh,em]=e.substring(0,5).split(':').map(Number);
+  return (eh*60+em)-(sh*60+sm);
+}
+function fmtDur(m) {
+  if(m<=0)return'0h';
+  return m%60?`${Math.floor(m/60)}h${p2(m%60)}`:`${Math.floor(m/60)}h`;
+}
+function slugify(str) {
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]/g,'');
+}
+function toast(msg,dur=2500) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),dur);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LOGIN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function doLogin() {
+  const val = document.getElementById('pwd').value;
+  if (val === ADMIN_PASS) {
+    sessionStorage.setItem('admin','1');
+    document.getElementById('login-wrap').classList.add('hidden');
+    document.getElementById('admin-app').classList.remove('hidden');
+    initAdmin();
+  } else {
+    document.getElementById('login-err').style.display='block';
+  }
+}
+function doLogout() {
+  sessionStorage.removeItem('admin');
+  location.reload();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function initAdmin() {
+  // Load reference data
+  const [{ data: emps }, { data: acts }, { data: pars }] = await Promise.all([
+    db.from('employees').select('*').order('last_name'),
+    db.from('activities').select('*').order('order_index'),
+    db.from('parcels').select('*').order('lieu_dit').order('cvi_number')
+  ]);
+  A.employees  = emps  || [];
+  A.activities = acts  || [];
+  A.parcels    = pars  || [];
+
+  // Set default filter dates (this week Mon → today)
+  document.getElementById('f-date-start').value = mondayISO();
+  document.getElementById('f-date-end').value   = todayISO();
+
+  // Fill employee filter
+  const empSel = document.getElementById('f-emp');
+  A.employees.forEach(e => {
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = `${e.first_name} ${e.last_name}`;
+    empSel.appendChild(o);
+  });
+
+  // Fill activity filter
+  const actSel = document.getElementById('f-act');
+  A.activities.forEach(a => {
+    const o = document.createElement('option');
+    o.value = a.id; o.textContent = a.name;
+    actSel.appendChild(o);
+  });
+
+  await loadDashboard();
+  await loadSaisies();
+  renderEmployees();
+  renderParcels();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NAVIGATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function nav(id) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  document.querySelector(`[data-panel="${id}"]`).classList.add('active');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DASHBOARD
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadDashboard() {
+  const today = todayISO();
+  const monday = mondayISO();
+
+  // Today's entries
+  const { data: todayEntries } = await db.from('day_entries')
+    .select('*, employees(first_name, last_name), work_sequences(*)')
+    .eq('work_date', today);
+
+  const todayData = todayEntries || [];
+  document.getElementById('stat-today').textContent = todayData.length;
+  document.getElementById('stat-today-sub').textContent =
+    todayData.filter(e=>e.is_complete).length + ' validée(s)';
+
+  // Week entries
+  const { data: weekEntries } = await db.from('day_entries')
+    .select('*, work_sequences(*)')
+    .gte('work_date', monday).lte('work_date', today).eq('is_complete', true);
+
+  const weekData = weekEntries || [];
+  document.getElementById('stat-week').textContent = weekData.length;
+
+  let totalWeekMin = 0;
+  weekData.forEach(e => {
+    const seqMin = (e.work_sequences||[]).reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
+    totalWeekMin += seqMin - (e.lunch_break_minutes||0);
+  });
+  document.getElementById('stat-hours').textContent = fmtDur(Math.max(0,totalWeekMin));
+
+  // Today table
+  const tbody = document.getElementById('today-tbody');
+  tbody.innerHTML = '';
+  if (!todayData.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-table">Aucune saisie aujourd\'hui</td></tr>';
+    return;
+  }
+  todayData.forEach(e => {
+    const emp = e.employees;
+    const seqs = e.work_sequences||[];
+    const dur = seqs.reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0) - (e.lunch_break_minutes||0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="td-name">${emp?.first_name} ${emp?.last_name}</td>
+      <td>${seqs.length} séquence${seqs.length>1?'s':''}</td>
+      <td class="td-dur">${fmtDur(Math.max(0,dur))}</td>
+      <td><span class="badge ${e.is_complete?'badge-done':'badge-draft'}">
+        ${e.is_complete?'✓ Validée':'En cours'}
+      </span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SAISIES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadSaisies() {
+  const tbody = document.getElementById('saisies-tbody');
+  tbody.innerHTML = '<tr><td colspan="9" class="loading-table">Chargement…</td></tr>';
+
+  const dateStart = document.getElementById('f-date-start').value;
+  const dateEnd   = document.getElementById('f-date-end').value;
+  const empId     = document.getElementById('f-emp').value;
+  const actId     = document.getElementById('f-act').value;
+
+  let q = db.from('work_sequences')
+    .select(`*, day_entries!inner(work_date, lunch_break_minutes, is_complete, employee_id,
+             employees(id, first_name, last_name))`)
+    .order('day_entries(work_date)', { ascending: false })
+    .order('start_time');
+
+  if (dateStart) q = q.gte('day_entries.work_date', dateStart);
+  if (dateEnd)   q = q.lte('day_entries.work_date', dateEnd);
+  if (empId)     q = q.eq('day_entries.employee_id', empId);
+  if (actId)     q = q.eq('activity_id', actId);
+
+  const { data, error } = await q;
+  if (error) { console.error(error); tbody.innerHTML='<tr><td colspan="9" class="empty-table">Erreur</td></tr>'; return; }
+
+  A.allSeqs = data || [];
+  renderSaisies(A.allSeqs);
+}
+
+function renderSaisies(rows) {
+  const tbody = document.getElementById('saisies-tbody');
+  tbody.innerHTML = '';
+  document.getElementById('saisies-count').textContent =
+    rows.length ? `${rows.length} ligne(s) affichée(s)` : '';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-table">Aucune saisie pour cette période</td></tr>';
+    return;
+  }
+
+  rows.forEach(seq => {
+    const entry  = seq.day_entries;
+    const emp    = entry?.employees;
+    const act    = A.activities.find(a=>a.id==seq.activity_id);
+    const par    = seq.parcel_id ? A.parcels.find(p=>p.id==seq.parcel_id) : null;
+    const actName = (act?.is_other && seq.other_activity_label) ? seq.other_activity_label : act?.name||'?';
+    const dur    = calcMin(seq.start_time, seq.end_time);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="white-space:nowrap">${fmtDate(entry?.work_date)}</td>
+      <td class="td-name">${emp?.first_name||''} ${emp?.last_name||''}</td>
+      <td class="td-time">${fmtTime(seq.start_time)} → ${fmtTime(seq.end_time)}</td>
+      <td class="td-dur">${fmtDur(dur)}</td>
+      <td class="td-act">${actName}</td>
+      <td class="td-par">${par ? `${par.cvi_number} — ${par.cepage}` : '—'}</td>
+      <td class="td-com">${seq.comment||'—'}</td>
+      <td><span class="badge ${entry?.is_complete?'badge-done':'badge-draft'}">
+        ${entry?.is_complete?'Validée':'En cours'}
+      </span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editSeq('${seq.id}')">✏️</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function resetFilters() {
+  document.getElementById('f-date-start').value = mondayISO();
+  document.getElementById('f-date-end').value   = todayISO();
+  document.getElementById('f-emp').value = '';
+  document.getElementById('f-act').value = '';
+  loadSaisies();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EDIT SEQUENCE (modal)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function editSeq(id) {
+  const seq = A.allSeqs.find(s=>s.id===id);
+  if (!seq) return;
+  const act = A.activities.find(a=>a.id==seq.activity_id);
+
+  document.getElementById('modal-title').textContent = 'Modifier la séquence';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px;">
+      <input type="time" id="m-start" class="modal-input" style="margin:0" value="${fmtTime(seq.start_time)}" step="300">
+      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <input type="time" id="m-end"   class="modal-input" style="margin:0" value="${fmtTime(seq.end_time)}"   step="300">
+    </div>
+    <select id="m-act" class="modal-input">
+      ${A.activities.map(a=>`<option value="${a.id}" ${a.id==seq.activity_id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune —</option>
+      ${A.parcels.map(p=>`<option value="${p.id}" ${p.id==seq.parcel_id?'selected':''}>${p.cvi_number} — ${p.cepage} (${p.lieu_dit})</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire" value="${seq.comment||''}">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteSeqAdmin('${id}')">Supprimer</button>
+    <button class="btn btn-primary" onclick="saveSeqAdmin('${id}')">Enregistrer</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function saveSeqAdmin(id) {
+  const start = document.getElementById('m-start').value + ':00';
+  const end   = document.getElementById('m-end').value   + ':00';
+  const actId = document.getElementById('m-act').value;
+  const parId = document.getElementById('m-par').value || null;
+  const com   = document.getElementById('m-com').value.trim() || null;
+
+  const { error } = await db.from('work_sequences').update({
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+  }).eq('id', id);
+
+  if (error) { toast('❌ Erreur'); return; }
+  closeModal();
+  toast('✓ Modification enregistrée');
+  loadSaisies();
+}
+
+async function deleteSeqAdmin(id) {
+  if (!confirm('Supprimer définitivement cette séquence ?')) return;
+  await db.from('work_sequences').delete().eq('id', id);
+  closeModal();
+  toast('Séquence supprimée');
+  loadSaisies();
+}
+
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EMPLOYEES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderEmployees() {
+  const grid = document.getElementById('emp-grid');
+  grid.innerHTML = '';
+  A.employees.forEach(emp => {
+    const url = `${BASE_URL}?u=${emp.slug}`;
+    const card = document.createElement('div');
+    card.className = 'emp-card';
+    card.innerHTML = `
+      <div class="emp-name">${emp.first_name} ${emp.last_name}</div>
+      <div class="emp-slug">/${emp.slug}</div>
+      <div class="emp-url">${url}</div>
+      <div class="emp-actions">
+        <button class="btn btn-ghost btn-sm" onclick="copyUrl('${url}')">📋 Copier le lien</button>
+        <button class="btn btn-danger btn-sm" onclick="toggleEmployee('${emp.id}', ${emp.is_active})">
+          ${emp.is_active ? 'Désactiver' : 'Réactiver'}
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateSlug() {
+  const fn = document.getElementById('new-fname').value;
+  const ln = document.getElementById('new-lname').value;
+  const slug = slugify(fn + ln);
+  document.getElementById('slug-preview').textContent =
+    slug ? `${BASE_URL}?u=${slug}` : '—';
+}
+
+async function addEmployee() {
+  const fn = document.getElementById('new-fname').value.trim();
+  const ln = document.getElementById('new-lname').value.trim();
+  if (!fn || !ln) { toast('⚠️ Prénom et nom requis'); return; }
+  const slug = slugify(fn + ln);
+  if (!slug) { toast('⚠️ Noms invalides'); return; }
+
+  const { data, error } = await db.from('employees')
+    .insert({ slug, first_name: fn, last_name: ln.toUpperCase() })
+    .select().single();
+
+  if (error) { toast(error.code==='23505' ? '❌ Ce salarié existe déjà' : '❌ Erreur'); return; }
+  A.employees.push(data);
+  renderEmployees();
+  document.getElementById('new-fname').value = '';
+  document.getElementById('new-lname').value = '';
+  document.getElementById('slug-preview').textContent = '—';
+  toast(`✓ ${data.first_name} ${data.last_name} ajouté(e)`);
+}
+
+async function toggleEmployee(id, isActive) {
+  const action = isActive ? 'désactiver' : 'réactiver';
+  if (!confirm(`Voulez-vous ${action} ce salarié ?`)) return;
+  await db.from('employees').update({ is_active: !isActive }).eq('id', id);
+  const emp = A.employees.find(e=>e.id===id);
+  if (emp) emp.is_active = !isActive;
+  renderEmployees();
+  toast(`Salarié ${isActive?'désactivé':'réactivé'}`);
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url).then(()=>toast('✓ Lien copié !'));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PARCELS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderParcels() {
+  const tbody = document.getElementById('parcels-tbody');
+  tbody.innerHTML = '';
+  A.parcels.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.lieu_dit}</td>
+      <td style="font-weight:700">${p.cvi_number}</td>
+      <td>${p.cepage||'—'}</td>
+      <td><span class="badge ${p.is_active?'badge-done':'badge-draft'}">${p.is_active?'Oui':'Non'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="toggleParcel('${p.id}',${p.is_active})">
+          ${p.is_active?'Désactiver':'Réactiver'}
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openAddParcel() {
+  document.getElementById('modal-title').textContent = 'Ajouter une parcelle';
+  document.getElementById('modal-body').innerHTML = `
+    <input type="text" id="p-lieu"   class="modal-input" placeholder="Lieu-dit (ex: Moulin)">
+    <input type="text" id="p-cvi"    class="modal-input" placeholder="N° CVI (ex: C44)">
+    <input type="text" id="p-cepage" class="modal-input" placeholder="Cépage (ex: Sauvignon)">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="addParcel()">Ajouter</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function addParcel() {
+  const lieu   = document.getElementById('p-lieu').value.trim();
+  const cvi    = document.getElementById('p-cvi').value.trim();
+  const cepage = document.getElementById('p-cepage').value.trim();
+  if (!lieu || !cvi) { toast('⚠️ Lieu-dit et N° CVI requis'); return; }
+
+  const { data, error } = await db.from('parcels')
+    .insert({ lieu_dit: lieu, cvi_number: cvi, cepage: cepage||null })
+    .select().single();
+
+  if (error) { toast(error.code==='23505'?'❌ Cette parcelle existe déjà':'❌ Erreur'); return; }
+  A.parcels.push(data);
+  closeModal();
+  renderParcels();
+  toast(`✓ Parcelle ${cvi} ajoutée`);
+}
+
+async function toggleParcel(id, isActive) {
+  await db.from('parcels').update({ is_active: !isActive }).eq('id', id);
+  const p = A.parcels.find(p=>p.id==id);
+  if (p) p.is_active = !isActive;
+  renderParcels();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EXPORT EXCEL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function exportExcel() {
+  const dateStart = document.getElementById('f-date-start').value || mondayISO();
+  const dateEnd   = document.getElementById('f-date-end').value   || todayISO();
+
+  const { data } = await db.from('work_sequences')
+    .select(`*, day_entries!inner(work_date, lunch_break_minutes, is_complete,
+             employees(first_name, last_name))`)
+    .gte('day_entries.work_date', dateStart)
+    .lte('day_entries.work_date', dateEnd)
+    .order('day_entries(work_date)', { ascending: true })
+    .order('start_time');
+
+  const rows = (data||[]).map(seq => {
+    const entry  = seq.day_entries;
+    const emp    = entry?.employees;
+    const act    = A.activities.find(a=>a.id==seq.activity_id);
+    const par    = seq.parcel_id ? A.parcels.find(p=>p.id==seq.parcel_id) : null;
+    const actName = (act?.is_other && seq.other_activity_label) ? seq.other_activity_label : act?.name||'';
+    return {
+      'Date':         entry?.work_date,
+      'Salarié':      `${emp?.first_name||''} ${emp?.last_name||''}`.trim(),
+      'Début':        fmtTime(seq.start_time),
+      'Fin':          fmtTime(seq.end_time),
+      'Durée (min)':  calcMin(seq.start_time, seq.end_time),
+      'Durée':        fmtDur(calcMin(seq.start_time, seq.end_time)),
+      'Activité':     actName,
+      'Lieu-dit':     par?.lieu_dit || '',
+      'N° CVI':       par?.cvi_number || '',
+      'Cépage':       par?.cepage || '',
+      'Commentaire':  seq.comment || '',
+      'Statut':       entry?.is_complete ? 'Validée' : 'En cours'
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Heures');
+
+  // Auto column width
+  const colWidths = Object.keys(rows[0]||{}).map(k=>({wch: Math.max(k.length, 12)}));
+  ws['!cols'] = colWidths;
+
+  const filename = `affut_heures_${dateStart}_${dateEnd}.xlsx`;
+  XLSX.writeFile(wb, filename);
+  toast(`✓ Export "${filename}" téléchargé`);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STARTUP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+if (sessionStorage.getItem('admin') === '1') {
+  document.getElementById('login-wrap').classList.add('hidden');
+  document.getElementById('admin-app').classList.remove('hidden');
+  initAdmin();
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+</body>
+</html>

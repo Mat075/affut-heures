@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#5C1A1A">
+  <title>L'Affût — Mes heures</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg:           #F8F5F0;
+      --surface:      #FFFFFF;
+      --primary:      #5C1A1A;
+      --primary-dk:   #3E1111;
+      --accent:       #B07D3A;
+      --text:         #1C1410;
+      --text-muted:   #8A7A6A;
+      --border:       #E2D8CC;
+      --success:      #2E6B47;
+      --danger:       #B44040;
+      --r:            12px;
+      --shadow:       0 2px 10px rgba(0,0,0,0.07);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── HEADER ─────────────────────────────────── */
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 22px 20px 28px;
+      text-align: center;
+    }
+    .header-logo {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 6px;
+    }
+    .header-name {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .header-date {
+      font-size: 15px;
+      opacity: 0.8;
+      text-transform: capitalize;
+    }
+
+    /* ── MAIN ────────────────────────────────────── */
+    .main { padding: 16px 16px 32px; }
+
+    /* ── SECTION TITLE ───────────────────────────── */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin: 24px 0 10px;
+    }
+
+    /* ── SEQUENCE CARD ───────────────────────────── */
+    .seq-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 16px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .seq-body { flex: 1; min-width: 0; }
+    .seq-time {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+    .seq-activity {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .seq-parcel {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+    .seq-comment {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .seq-duration {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      background: #FFF8EE;
+      border: 1px solid #E8D4A0;
+      border-radius: 20px;
+      padding: 2px 10px;
+    }
+    .seq-del {
+      background: none;
+      border: none;
+      color: var(--border);
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+      margin-top: -2px;
+    }
+    .seq-del:active { color: var(--danger); }
+
+    /* ── EMPTY STATE ────────────────────────────── */
+    .empty {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      padding: 20px 0 12px;
+    }
+
+    /* ── ADD FORM ────────────────────────────────── */
+    .add-form {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 2px solid var(--primary);
+      padding: 20px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+    }
+    .add-form-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 18px;
+    }
+
+    /* ── FORM ELEMENTS ───────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-label .opt {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 11px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 16px;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-appearance: none;
+      appearance: none;
+      transition: border-color 0.15s;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #fff;
+    }
+    select.form-control {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A7A6A' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 40px;
+    }
+    textarea.form-control { resize: none; }
+
+    /* ── TIME ROW ────────────────────────────────── */
+    .time-row {
+      display: grid;
+      grid-template-columns: 1fr 28px 1fr;
+      gap: 6px;
+      align-items: center;
+    }
+    .time-arrow {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 18px;
+      font-weight: 300;
+      padding-top: 6px;
+    }
+
+    /* ── FORM ACTIONS ────────────────────────────── */
+    .form-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    /* ── BUTTONS ─────────────────────────────────── */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: opacity 0.15s, transform 0.1s;
+      line-height: 1.2;
+    }
+    .btn:active { opacity: 0.82; transform: scale(0.98); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-ghost   { background: var(--border); color: var(--text-muted); }
+    .btn-dashed  {
+      background: var(--surface);
+      color: var(--primary);
+      border: 2px dashed var(--primary);
+      font-size: 17px;
+      margin-top: 4px;
+    }
+    .btn-finish {
+      background: var(--success);
+      color: white;
+      font-size: 18px;
+      padding: 20px;
+      border-radius: 14px;
+      border: none;
+      width: 100%;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .btn-finish:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .btn-finish:not(:disabled):active { opacity: 0.85; transform: scale(0.98); }
+
+    /* ── LUNCH ───────────────────────────────────── */
+    .lunch-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+    }
+    .lunch-label { font-size: 15px; font-weight: 600; flex: 1; }
+    .lunch-input {
+      width: 72px;
+      padding: 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      text-align: center;
+      background: var(--bg);
+    }
+    .lunch-input:focus { outline: none; border-color: var(--primary); }
+    .lunch-unit { font-size: 14px; color: var(--text-muted); }
+
+    /* ── TOTAL ───────────────────────────────────── */
+    .total-card {
+      background: var(--primary);
+      color: white;
+      border-radius: var(--r);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+      margin-top: 10px;
+    }
+    .total-label { font-size: 14px; opacity: 0.8; }
+    .total-value { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
+
+    /* ── DONE BANNER ─────────────────────────────── */
+    .done-banner {
+      background: var(--success);
+      color: white;
+      border-radius: 14px;
+      padding: 22px;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+    .done-icon { font-size: 40px; margin-bottom: 8px; }
+    .done-text { font-size: 17px; font-weight: 700; }
+    .done-sub  { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+    /* ── HISTORY ─────────────────────────────────── */
+    .hist-item {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .hist-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      cursor: pointer;
+    }
+    .hist-date { font-size: 15px; font-weight: 600; text-transform: capitalize; }
+    .hist-total { font-size: 15px; color: var(--accent); font-weight: 700; }
+    .hist-body {
+      display: none;
+      padding: 0 16px 14px;
+      border-top: 1px solid var(--border);
+    }
+    .hist-body.open { display: block; }
+    .hist-seq {
+      font-size: 13px;
+      color: var(--text-muted);
+      padding: 5px 0;
+      border-bottom: 1px solid #F5F0EA;
+    }
+    .hist-seq:last-child { border-bottom: none; }
+
+    /* ── LOADING / ERROR ─────────────────────────── */
+    .screen-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      padding: 40px 20px;
+      text-align: center;
+      gap: 16px;
+    }
+    .spinner {
+      width: 44px; height: 44px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .screen-icon { font-size: 52px; }
+    .screen-title { font-size: 20px; font-weight: 700; }
+    .screen-msg { font-size: 15px; color: var(--text-muted); max-width: 300px; line-height: 1.5; }
+
+    /* ── TOAST ───────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(90px);
+      background: #1C1410EE;
+      color: white;
+      padding: 12px 22px;
+      border-radius: 28px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+      z-index: 999;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── UTILS ───────────────────────────────────── */
+    .hidden { display: none !important; }
+    .mt-4  { margin-top: 16px; }
+    .mt-6  { margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<!-- ── LOADING ─────────────────────────────────────── -->
+<div id="screen-loading" class="screen-center">
+  <div class="spinner"></div>
+  <div style="color:var(--text-muted);font-size:15px;">Chargement…</div>
+</div>
+
+<!-- ── ERROR ──────────────────────────────────────── -->
+<div id="screen-error" class="screen-center hidden">
+  <div class="screen-icon">🔗</div>
+  <div class="screen-title">Lien non reconnu</div>
+  <div class="screen-msg" id="error-msg">Ce lien ne correspond à aucun compte actif.<br>Contactez Isabelle.</div>
+</div>
+
+<!-- ── APP ────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo">Domaine L'Affût</div>
+    <div class="header-name" id="h-name"></div>
+    <div class="header-date" id="h-date"></div>
+  </div>
+
+  <div class="main">
+
+    <!-- SEQUENCES -->
+    <div class="section-title">Séquences de travail</div>
+    <div id="seq-list"></div>
+
+    <!-- ADD FORM -->
+    <div id="add-form" class="add-form hidden">
+      <div class="add-form-title">Nouvelle séquence</div>
+
+      <div class="form-group">
+        <label class="form-label">Horaires</label>
+        <div class="time-row">
+          <input type="time" id="f-start" class="form-control" step="300">
+          <div class="time-arrow">→</div>
+          <input type="time" id="f-end"   class="form-control" step="300">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Activité</label>
+        <select id="f-activity" class="form-control">
+          <option value="">— Choisir —</option>
+        </select>
+      </div>
+
+      <div class="form-group hidden" id="other-group">
+        <label class="form-label">Préciser l'activité</label>
+        <input type="text" id="f-other" class="form-control" placeholder="Ex : épamprage…">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Parcelle <span class="opt">(optionnel)</span></label>
+        <select id="f-parcel" class="form-control">
+          <option value="">— Aucune —</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Commentaire <span class="opt">(optionnel)</span></label>
+        <textarea id="f-comment" class="form-control" rows="2" placeholder="Remarques…"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-ghost"   onclick="cancelAdd()">Annuler</button>
+        <button class="btn btn-primary" id="btn-submit" onclick="submitSeq()">Ajouter</button>
+      </div>
+    </div>
+
+    <!-- ADD BUTTON -->
+    <button id="btn-add" class="btn btn-dashed" onclick="showForm()">
+      + Ajouter une séquence
+    </button>
+
+    <!-- LUNCH -->
+    <div class="section-title mt-6">Pause déjeuner</div>
+    <div class="lunch-card">
+      <span class="lunch-label">Durée de la pause</span>
+      <input type="number" id="lunch" class="lunch-input" min="0" max="180" step="5" value="0"
+             oninput="onLunchChange(this.value)">
+      <span class="lunch-unit">min</span>
+    </div>
+
+    <!-- TOTAL -->
+    <div class="total-card">
+      <span class="total-label">Total journée</span>
+      <span class="total-value" id="total">0h</span>
+    </div>
+
+    <!-- FINISH -->
+    <div id="finish-area" class="mt-4">
+      <button class="btn-finish" id="btn-finish" onclick="onFinish()" disabled>
+        ✓ Terminer ma journée
+      </button>
+    </div>
+
+    <!-- DONE BANNER -->
+    <div id="done-banner" class="done-banner hidden mt-4">
+      <div class="done-icon">✅</div>
+      <div class="done-text">Journée validée</div>
+      <div class="done-sub" id="done-sub"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="section-title mt-6">Historique récent</div>
+    <div id="hist-list"></div>
+
+    <div style="height:40px"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFIG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SUPABASE_URL  = 'https://wljibsxwzbfaeshthcku.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsamlic3h3emJmYWVzaHRoY2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjgxMzYsImV4cCI6MjA4NzU0NDEzNn0.IqCbjx2k2iLfdSXw97Dl2dVqXmOrpUVTdO_Pzo0yRFk';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const S = {
+  employee:   null,
+  activities: [],
+  parcels:    [],
+  dayEntry:   null,
+  sequences:  [],
+  history:    []
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const DAYS   = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const MONTHS = ['janvier','février','mars','avril','mai','juin',
+                'juillet','août','septembre','octobre','novembre','décembre'];
+
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function p2(n) { return String(n).padStart(2,'0'); }
+function fmtDateLong(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+function fmtTime(t) { return t ? t.substring(0,5) : '--:--'; }
+function minutes(start, end) {
+  const [sh,sm] = start.substring(0,5).split(':').map(Number);
+  const [eh,em] = end.substring(0,5).split(':').map(Number);
+  return (eh*60+em) - (sh*60+sm);
+}
+function fmtDur(min) {
+  if (min <= 0) return '0h';
+  return min%60 ? `${Math.floor(min/60)}h${p2(min%60)}` : `${Math.floor(min/60)}h`;
+}
+function round5(t) {
+  if (!t) return t;
+  const [h,m] = t.split(':').map(Number);
+  const r = Math.round(m/5)*5;
+  return `${p2(r===60?h+1:h)}:${p2(r===60?0:r)}`;
+}
+function toast(msg, dur=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), dur);
+}
+function totalToday() {
+  let t = S.sequences.reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0);
+  t -= parseInt(document.getElementById('lunch').value)||0;
+  return Math.max(0, t);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function init() {
+  try {
+    const slug = new URLSearchParams(location.search).get('u');
+    if (!slug) { showError('Lien invalide. Utilisez votre lien personnel.'); return; }
+
+    const { data: emp } = await db.from('employees')
+      .select('*').eq('slug', slug).eq('is_active', true).single();
+    if (!emp) { showError('Lien non reconnu. Contactez Isabelle.'); return; }
+    S.employee = emp;
+
+    const [{ data: acts }, { data: parcels }] = await Promise.all([
+      db.from('activities').select('*').eq('is_active', true).order('order_index'),
+      db.from('parcels').select('*').eq('is_active', true).order('lieu_dit').order('cvi_number')
+    ]);
+    S.activities = acts || [];
+    S.parcels    = parcels || [];
+
+    await loadToday();
+    await loadHistory();
+    renderAll();
+
+  } catch(e) {
+    console.error(e);
+    showError('Erreur de connexion. Vérifiez votre réseau.');
+  }
+}
+
+async function loadToday() {
+  const today = todayISO();
+  const { data: entry } = await db.from('day_entries')
+    .select('*').eq('employee_id', S.employee.id).eq('work_date', today).single();
+  if (entry) {
+    S.dayEntry = entry;
+    const { data: seqs } = await db.from('work_sequences')
+      .select('*').eq('day_entry_id', entry.id).order('start_time');
+    S.sequences = seqs || [];
+  } else {
+    S.dayEntry  = null;
+    S.sequences = [];
+  }
+}
+
+async function loadHistory() {
+  const { data } = await db.from('day_entries')
+    .select('*, work_sequences(*)')
+    .eq('employee_id', S.employee.id)
+    .neq('work_date', todayISO())
+    .order('work_date', { ascending: false })
+    .limit(7);
+  S.history = data || [];
+}
+
+async function ensureEntry() {
+  if (S.dayEntry) return;
+  const { data } = await db.from('day_entries')
+    .insert({ employee_id: S.employee.id, work_date: todayISO() })
+    .select().single();
+  S.dayEntry = data;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RENDER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function renderAll() {
+  document.getElementById('h-name').textContent =
+    `${S.employee.first_name} ${S.employee.last_name}`;
+  document.getElementById('h-date').textContent = fmtDateLong(todayISO());
+
+  if (S.dayEntry?.lunch_break_minutes)
+    document.getElementById('lunch').value = S.dayEntry.lunch_break_minutes;
+
+  buildActivitySelect();
+  buildParcelSelect();
+  renderSeqs();
+  renderHistory();
+
+  if (S.dayEntry?.is_complete) setDone();
+
+  document.getElementById('screen-loading').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+}
+
+function buildActivitySelect() {
+  const sel = document.getElementById('f-activity');
+  sel.innerHTML = '<option value="">— Choisir —</option>';
+  S.activities.forEach(a => {
+    const o = document.createElement('option');
+    o.value = a.id; o.dataset.other = a.is_other?'1':'0';
+    o.textContent = a.name;
+    sel.appendChild(o);
+  });
+}
+
+function buildParcelSelect() {
+  const sel = document.getElementById('f-parcel');
+  sel.innerHTML = '<option value="">— Aucune —</option>';
+  const groups = {};
+  S.parcels.forEach(p => { (groups[p.lieu_dit]??=[]).push(p); });
+  Object.entries(groups).forEach(([lieu, list]) => {
+    const grp = document.createElement('optgroup');
+    grp.label = lieu;
+    list.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = `${p.cvi_number} — ${p.cepage}`;
+      grp.appendChild(o);
+    });
+    sel.appendChild(grp);
+  });
+}
+
+function renderSeqs() {
+  const list = document.getElementById('seq-list');
+  list.innerHTML = '';
+  const done = S.dayEntry?.is_complete;
+
+  if (!S.sequences.length) {
+    list.innerHTML = '<div class="empty">Aucune séquence pour aujourd\'hui</div>';
+  } else {
+    S.sequences.forEach(seq => {
+      const act = S.activities.find(a => a.id == seq.activity_id);
+      const par = seq.parcel_id ? S.parcels.find(p => p.id == seq.parcel_id) : null;
+      const actName = (act?.is_other && seq.other_activity_label) ? seq.other_activity_label : (act?.name||'?');
+      const dur = minutes(seq.start_time, seq.end_time);
+      const card = document.createElement('div');
+      card.className = 'seq-card';
+      card.innerHTML = `
+        <div class="seq-body">
+          <div class="seq-time">${fmtTime(seq.start_time)} → ${fmtTime(seq.end_time)}</div>
+          <div class="seq-activity">${actName}</div>
+          ${par ? `<div class="seq-parcel">📍 ${par.cvi_number} — ${par.cepage} · ${par.lieu_dit}</div>` : ''}
+          ${seq.comment ? `<div class="seq-comment">💬 ${seq.comment}</div>` : ''}
+          <div class="seq-duration">⏱ ${fmtDur(dur)}</div>
+        </div>
+        <button class="seq-del" title="Supprimer" ${done?'disabled':''} data-id="${seq.id}">×</button>
+      `;
+      card.querySelector('.seq-del').onclick = () => deleteSeq(seq.id);
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('total').textContent = fmtDur(totalToday());
+  const btn = document.getElementById('btn-finish');
+  if (btn) btn.disabled = S.sequences.length === 0;
+}
+
+function renderHistory() {
+  const list = document.getElementById('hist-list');
+  list.innerHTML = '';
+  if (!S.history.length) {
+    list.innerHTML = '<div class="empty">Aucun historique</div>';
+    return;
+  }
+  S.history.forEach(entry => {
+    const seqs = entry.work_sequences || [];
+    let tot = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
+    if (entry.lunch_break_minutes) tot -= entry.lunch_break_minutes;
+
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    item.innerHTML = `
+      <div class="hist-header">
+        <span class="hist-date">${fmtDateLong(entry.work_date)}</span>
+        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete?'✓':''}</span>
+      </div>
+      <div class="hist-body" id="hb-${entry.id}">
+        ${seqs.map(s=>{
+          const act = S.activities.find(a=>a.id==s.activity_id);
+          const par = s.parcel_id ? S.parcels.find(p=>p.id==s.parcel_id) : null;
+          const nm  = (act?.is_other && s.other_activity_label) ? s.other_activity_label : act?.name||'?';
+          return `<div class="hist-seq">${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${nm}${par?` · ${par.cvi_number}`:''}</div>`;
+        }).join('')}
+        ${entry.lunch_break_minutes ? `<div class="hist-seq">☕ Pause : ${entry.lunch_break_minutes} min</div>` : ''}
+      </div>
+    `;
+    item.querySelector('.hist-header').onclick = () =>
+      item.querySelector('.hist-body').classList.toggle('open');
+    list.appendChild(item);
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ADD FORM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showForm() {
+  if (S.dayEntry?.is_complete) return;
+  document.getElementById('add-form').classList.remove('hidden');
+  document.getElementById('btn-add').classList.add('hidden');
+  document.getElementById('f-activity').value = '';
+  document.getElementById('f-parcel').value   = '';
+  document.getElementById('f-comment').value  = '';
+  document.getElementById('f-other').value    = '';
+  document.getElementById('other-group').classList.add('hidden');
+  // Pre-fill start time from last sequence end
+  const last = S.sequences.at(-1);
+  document.getElementById('f-start').value = last ? fmtTime(last.end_time) : '08:00';
+  document.getElementById('f-end').value   = '';
+  document.getElementById('f-start').focus();
+}
+
+function cancelAdd() {
+  document.getElementById('add-form').classList.add('hidden');
+  document.getElementById('btn-add').classList.remove('hidden');
+}
+
+document.getElementById('f-activity').addEventListener('change', function() {
+  const isOther = this.options[this.selectedIndex]?.dataset?.other === '1';
+  document.getElementById('other-group').classList.toggle('hidden', !isOther);
+});
+
+async function submitSeq() {
+  const start = round5(document.getElementById('f-start').value);
+  const end   = round5(document.getElementById('f-end').value);
+  const actId = document.getElementById('f-activity').value;
+  const parId = document.getElementById('f-parcel').value || null;
+  const com   = document.getElementById('f-comment').value.trim() || null;
+  const other = document.getElementById('f-other').value.trim() || null;
+  const act   = S.activities.find(a => a.id == actId);
+
+  if (!start || !end)     { toast('⚠️ Renseignez début et fin');   return; }
+  if (!actId)             { toast('⚠️ Choisissez une activité');   return; }
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (act?.is_other && !other)  { toast('⚠️ Précisez l\'activité'); return; }
+
+  const btn = document.getElementById('btn-submit');
+  btn.textContent = '…'; btn.disabled = true;
+
+  await ensureEntry();
+
+  const { data: seq, error } = await db.from('work_sequences').insert({
+    day_entry_id:        S.dayEntry.id,
+    start_time:          start + ':00',
+    end_time:            end   + ':00',
+    activity_id:         actId,
+    other_activity_label: act?.is_other ? other : null,
+    parcel_id:           parId,
+    comment:             com
+  }).select().single();
+
+  btn.textContent = 'Ajouter'; btn.disabled = false;
+
+  if (error) { toast('❌ Erreur lors de l\'enregistrement'); console.error(error); return; }
+
+  S.sequences.push(seq);
+  cancelAdd();
+  renderSeqs();
+  toast('✓ Séquence ajoutée');
+}
+
+async function deleteSeq(id) {
+  if (!confirm('Supprimer cette séquence ?')) return;
+  const { error } = await db.from('work_sequences').delete().eq('id', id);
+  if (error) { toast('❌ Erreur'); return; }
+  S.sequences = S.sequences.filter(s => s.id !== id);
+  renderSeqs();
+  toast('Séquence supprimée');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LUNCH
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let lunchTimer;
+async function onLunchChange(val) {
+  document.getElementById('total').textContent = fmtDur(totalToday());
+  clearTimeout(lunchTimer);
+  lunchTimer = setTimeout(async () => {
+    if (!S.dayEntry) return;
+    const m = Math.max(0, parseInt(val)||0);
+    await db.from('day_entries').update({ lunch_break_minutes: m }).eq('id', S.dayEntry.id);
+    S.dayEntry.lunch_break_minutes = m;
+  }, 800);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FINISH DAY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function onFinish() {
+  if (S.sequences.length === 0) return;
+  const total = fmtDur(totalToday());
+  if (!confirm(`Valider votre journée du ${fmtDateLong(todayISO())} ?\n\nTotal : ${total}\n\nCette action enverra un email à Isabelle.`)) return;
+
+  const { error } = await db.from('day_entries')
+    .update({ is_complete: true }).eq('id', S.dayEntry.id);
+  if (error) { toast('❌ Erreur'); return; }
+  S.dayEntry.is_complete = true;
+  setDone();
+  toast('✅ Journée validée !', 3000);
+}
+
+function setDone() {
+  document.getElementById('finish-area').classList.add('hidden');
+  document.getElementById('done-banner').classList.remove('hidden');
+  document.getElementById('done-sub').textContent =
+    `Total : ${fmtDur(totalToday())} · Merci !`;
+  document.getElementById('btn-add').classList.add('hidden');
+  document.getElementById('add-form').classList.add('hidden');
+  document.querySelectorAll('.seq-del').forEach(b => b.disabled = true);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ERROR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('screen-loading').classList.add('hidden');
+  document.getElementById('screen-error').classList.remove('hidden');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// START
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+init();
+</script>
+</body>
+</html>
