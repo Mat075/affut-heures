@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#3E1111">
+  <meta name="theme-color" content="#E0004D">
   <title>L'Affût — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg:         #F5F2EE;
       --surface:    #FFFFFF;
-      --primary:    #3E1111;
-      --primary-lt: #5C1A1A;
-      --accent:     #B07D3A;
+      --primary:    #E0004D;
+      --primary-lt: #B8003F;
+      --accent:     #001A72;
       --text:       #1C1410;
       --text-muted: #8A7A6A;
       --border:     #E2D8CC;
@@ -24,7 +27,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -279,6 +282,38 @@
     }
     .modal-input:focus { outline: none; border-color: var(--primary); }
     .modal-actions { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
+
+    /* ── EMP SETTINGS ───────────────────────────── */
+    .emp-settings {
+      border-top: 1px solid var(--border);
+      margin-top: 12px;
+      padding-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .emp-setting-group { display: flex; flex-direction: column; gap: 3px; }
+    .emp-setting-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+    .emp-setting-row { display: flex; gap: 6px; align-items: center; }
+    .emp-setting-input {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      background: var(--bg);
+      width: 100%;
+    }
+    .emp-setting-input:focus { outline: none; border-color: var(--primary); background: #fff; }
+    .emp-setting-unit { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
     /* ── UTILS ──────────────────────────────────── */
     .hidden { display: none !important; }
@@ -650,8 +685,9 @@ async function loadDashboard() {
 
   let totalWeekMin = 0;
   weekData.forEach(e => {
-    const seqMin = (e.work_sequences||[]).reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
-    totalWeekMin += seqMin - (e.lunch_break_minutes||0);
+    const seqMin  = (e.work_sequences||[]).reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
+    const lunchMin = e.lunch_start && e.lunch_end ? calcMin(e.lunch_start, e.lunch_end) : 0;
+    totalWeekMin += seqMin - lunchMin;
   });
   document.getElementById('stat-hours').textContent = fmtDur(Math.max(0,totalWeekMin));
 
@@ -663,9 +699,10 @@ async function loadDashboard() {
     return;
   }
   todayData.forEach(e => {
-    const emp = e.employees;
+    const emp  = e.employees;
     const seqs = e.work_sequences||[];
-    const dur = seqs.reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0) - (e.lunch_break_minutes||0);
+    const lunchMin = e.lunch_start && e.lunch_end ? calcMin(e.lunch_start, e.lunch_end) : 0;
+    const dur  = seqs.reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0) - lunchMin;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-name">${emp?.first_name} ${emp?.last_name}</td>
@@ -692,7 +729,7 @@ async function loadSaisies() {
   const actId     = document.getElementById('f-act').value;
 
   let q = db.from('work_sequences')
-    .select(`*, day_entries!inner(work_date, lunch_break_minutes, is_complete, employee_id,
+    .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete, employee_id,
              employees(id, first_name, last_name))`)
     .order('day_entries(work_date)', { ascending: false })
     .order('start_time');
@@ -821,6 +858,8 @@ function renderEmployees() {
   grid.innerHTML = '';
   A.employees.forEach(emp => {
     const url = `${BASE_URL}?u=${emp.slug}`;
+    const balOffset = emp.balance_offset_minutes || 0;
+    const balSign   = balOffset >= 0 ? '+' : '';
     const card = document.createElement('div');
     card.className = 'emp-card';
     card.innerHTML = `
@@ -833,9 +872,49 @@ function renderEmployees() {
           ${emp.is_active ? 'Désactiver' : 'Réactiver'}
         </button>
       </div>
+      <div class="emp-settings">
+        <div class="emp-setting-group">
+          <div class="emp-setting-label">Heures / semaine</div>
+          <div class="emp-setting-row">
+            <input type="number" class="emp-setting-input" id="wh-${emp.id}"
+              value="${emp.weekly_hours_target || 35}" min="1" max="60" step="0.5">
+            <span class="emp-setting-unit">h</span>
+          </div>
+        </div>
+        <div class="emp-setting-group">
+          <div class="emp-setting-label">Ajustement solde</div>
+          <div class="emp-setting-row">
+            <input type="number" class="emp-setting-input" id="bo-${emp.id}"
+              value="${balOffset}" step="15" placeholder="0">
+            <span class="emp-setting-unit">min</span>
+          </div>
+        </div>
+        <div style="grid-column:1/-1;margin-top:4px">
+          <button class="btn btn-primary btn-sm" style="width:100%" onclick="saveEmpSettings('${emp.id}')">
+            ✓ Enregistrer
+          </button>
+        </div>
+      </div>
     `;
     grid.appendChild(card);
   });
+}
+
+async function saveEmpSettings(id) {
+  const whInput = document.getElementById('wh-' + id);
+  const boInput = document.getElementById('bo-' + id);
+  const wh = parseFloat(whInput.value);
+  const bo = parseInt(boInput.value) || 0;
+  if (isNaN(wh) || wh <= 0) { toast('⚠️ Heures invalides'); return; }
+
+  const { error } = await db.from('employees')
+    .update({ weekly_hours_target: wh, balance_offset_minutes: bo })
+    .eq('id', id);
+
+  if (error) { toast('❌ Erreur enregistrement'); return; }
+  const emp = A.employees.find(e => e.id === id);
+  if (emp) { emp.weekly_hours_target = wh; emp.balance_offset_minutes = bo; }
+  toast(`✓ Paramètres enregistrés`);
 }
 
 function updateSlug() {
@@ -949,7 +1028,7 @@ async function exportExcel() {
   const dateEnd   = document.getElementById('f-date-end').value   || todayISO();
 
   const { data } = await db.from('work_sequences')
-    .select(`*, day_entries!inner(work_date, lunch_break_minutes, is_complete,
+    .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete,
              employees(first_name, last_name))`)
     .gte('day_entries.work_date', dateStart)
     .lte('day_entries.work_date', dateEnd)

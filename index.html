@@ -5,16 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="theme-color" content="#5C1A1A">
+  <meta name="theme-color" content="#E0004D">
   <title>L'Affût — Mes heures</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg:           #F8F5F0;
       --surface:      #FFFFFF;
-      --primary:      #5C1A1A;
-      --primary-dk:   #3E1111;
-      --accent:       #B07D3A;
+      --primary:      #E0004D;
+      --primary-dk:   #B8003F;
+      --accent:       #001A72;
       --text:         #1C1410;
       --text-muted:   #8A7A6A;
       --border:       #E2D8CC;
@@ -27,7 +30,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -267,25 +270,58 @@
       background: var(--surface);
       border-radius: var(--r);
       border: 1px solid var(--border);
-      padding: 16px;
+      padding: 14px 16px;
       display: flex;
       align-items: center;
       gap: 12px;
       box-shadow: var(--shadow);
     }
-    .lunch-label { font-size: 15px; font-weight: 600; flex: 1; }
-    .lunch-input {
-      width: 72px;
-      padding: 10px;
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      font-size: 18px;
-      font-weight: 700;
-      text-align: center;
-      background: var(--bg);
+    .lunch-label { font-size: 14px; font-weight: 700; white-space: nowrap; color: var(--text-muted); }
+
+    /* ── BALANCE ──────────────────────────────────── */
+    .balance-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
-    .lunch-input:focus { outline: none; border-color: var(--primary); }
-    .lunch-unit { font-size: 14px; color: var(--text-muted); }
+    .balance-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+    }
+    .balance-period {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .balance-worked {
+      font-size: 26px;
+      font-weight: 900;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+      line-height: 1;
+    }
+    .balance-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .balance-target { font-size: 12px; color: var(--text-muted); }
+    .bal-diff {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+    }
+    .bal-pos  { background: #D4EDDA; color: #2E6B47; }
+    .bal-neg  { background: #FDDFE6; color: #B8003F; }
+    .bal-zero { background: #FFF3CD; color: #856404; }
 
     /* ── TOTAL ───────────────────────────────────── */
     .total-card {
@@ -477,10 +513,12 @@
     <!-- LUNCH -->
     <div class="section-title mt-6">Pause déjeuner</div>
     <div class="lunch-card">
-      <span class="lunch-label">Durée de la pause</span>
-      <input type="number" id="lunch" class="lunch-input" min="0" max="180" step="5" value="0"
-             oninput="onLunchChange(this.value)">
-      <span class="lunch-unit">min</span>
+      <span class="lunch-label">Pause</span>
+      <div class="time-row" style="flex:1">
+        <input type="time" id="lunch-start" class="form-control" step="300" oninput="onLunchChange()">
+        <div class="time-arrow">→</div>
+        <input type="time" id="lunch-end" class="form-control" step="300" oninput="onLunchChange()">
+      </div>
     </div>
 
     <!-- TOTAL -->
@@ -501,6 +539,27 @@
       <div class="done-icon">✅</div>
       <div class="done-text">Journée validée</div>
       <div class="done-sub" id="done-sub"></div>
+    </div>
+
+    <!-- BALANCE -->
+    <div class="section-title mt-6">Mes compteurs</div>
+    <div class="balance-grid">
+      <div class="balance-card">
+        <div class="balance-period">Cette semaine</div>
+        <div class="balance-worked" id="bal-week">—</div>
+        <div class="balance-footer">
+          <span class="balance-target" id="bal-week-target"></span>
+          <span class="bal-diff bal-zero" id="bal-week-diff"></span>
+        </div>
+      </div>
+      <div class="balance-card">
+        <div class="balance-period">Ce mois</div>
+        <div class="balance-worked" id="bal-month">—</div>
+        <div class="balance-footer">
+          <span class="balance-target" id="bal-month-target"></span>
+          <span class="bal-diff bal-zero" id="bal-month-diff"></span>
+        </div>
+      </div>
     </div>
 
     <!-- HISTORY -->
@@ -572,10 +631,27 @@ function toast(msg, dur=2500) {
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'), dur);
 }
+function lunchMinutes() {
+  const ls = document.getElementById('lunch-start').value;
+  const le = document.getElementById('lunch-end').value;
+  if (!ls || !le) return 0;
+  const m = minutes(ls, le);
+  return m > 0 ? m : 0;
+}
 function totalToday() {
   let t = S.sequences.reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0);
-  t -= parseInt(document.getElementById('lunch').value)||0;
+  t -= lunchMinutes();
   return Math.max(0, t);
+}
+function getMondayISO() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const diff = d.getDay()===0 ? -6 : 1-d.getDay();
+  d.setDate(d.getDate()+diff);
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+}
+function getYesterdayISO() {
+  const d = new Date(); d.setDate(d.getDate()-1);
+  return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -599,7 +675,7 @@ async function init() {
     S.parcels    = parcels || [];
 
     await loadToday();
-    await loadHistory();
+    await Promise.all([loadHistory(), loadBalance()]);
     renderAll();
 
   } catch(e) {
@@ -649,8 +725,10 @@ function renderAll() {
     `${S.employee.first_name} ${S.employee.last_name}`;
   document.getElementById('h-date').textContent = fmtDateLong(todayISO());
 
-  if (S.dayEntry?.lunch_break_minutes)
-    document.getElementById('lunch').value = S.dayEntry.lunch_break_minutes;
+  if (S.dayEntry?.lunch_start)
+    document.getElementById('lunch-start').value = fmtTime(S.dayEntry.lunch_start);
+  if (S.dayEntry?.lunch_end)
+    document.getElementById('lunch-end').value   = fmtTime(S.dayEntry.lunch_end);
 
   buildActivitySelect();
   buildParcelSelect();
@@ -736,8 +814,8 @@ function renderHistory() {
   }
   S.history.forEach(entry => {
     const seqs = entry.work_sequences || [];
-    let tot = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
-    if (entry.lunch_break_minutes) tot -= entry.lunch_break_minutes;
+    const lMin = entry.lunch_start && entry.lunch_end ? minutes(entry.lunch_start, entry.lunch_end) : 0;
+    let tot = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0) - lMin;
 
     const item = document.createElement('div');
     item.className = 'hist-item';
@@ -753,7 +831,7 @@ function renderHistory() {
           const nm  = (act?.is_other && s.other_activity_label) ? s.other_activity_label : act?.name||'?';
           return `<div class="hist-seq">${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${nm}${par?` · ${par.cvi_number}`:''}</div>`;
         }).join('')}
-        ${entry.lunch_break_minutes ? `<div class="hist-seq">☕ Pause : ${entry.lunch_break_minutes} min</div>` : ''}
+        ${lMin > 0 ? `<div class="hist-seq">☕ Pause : ${fmtTime(entry.lunch_start)} → ${fmtTime(entry.lunch_end)}</div>` : ''}
       </div>
     `;
     item.querySelector('.hist-header').onclick = () =>
@@ -843,14 +921,19 @@ async function deleteSeq(id) {
 // LUNCH
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 let lunchTimer;
-async function onLunchChange(val) {
+async function onLunchChange() {
   document.getElementById('total').textContent = fmtDur(totalToday());
   clearTimeout(lunchTimer);
   lunchTimer = setTimeout(async () => {
     if (!S.dayEntry) return;
-    const m = Math.max(0, parseInt(val)||0);
-    await db.from('day_entries').update({ lunch_break_minutes: m }).eq('id', S.dayEntry.id);
-    S.dayEntry.lunch_break_minutes = m;
+    const ls = document.getElementById('lunch-start').value || null;
+    const le = document.getElementById('lunch-end').value   || null;
+    await db.from('day_entries').update({
+      lunch_start: ls ? ls + ':00' : null,
+      lunch_end:   le ? le + ':00' : null
+    }).eq('id', S.dayEntry.id);
+    S.dayEntry.lunch_start = ls ? ls + ':00' : null;
+    S.dayEntry.lunch_end   = le ? le + ':00' : null;
   }, 800);
 }
 
@@ -887,6 +970,81 @@ function showError(msg) {
   document.getElementById('error-msg').textContent = msg;
   document.getElementById('screen-loading').classList.add('hidden');
   document.getElementById('screen-error').classList.remove('hidden');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BALANCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadBalance() {
+  const today     = todayISO();
+  const yesterday = getYesterdayISO();
+  const monday    = getMondayISO();
+  const firstOfMonth = today.substring(0, 8) + '01';
+  const balStart  = S.employee.balance_start_date || firstOfMonth;
+
+  const monthStart = balStart > firstOfMonth ? balStart : firstOfMonth;
+  const weekStart  = balStart > monday        ? balStart : monday;
+
+  let weekMin = 0, monthMin = 0;
+
+  // Past completed days
+  if (monthStart <= yesterday) {
+    const { data: entries } = await db.from('day_entries')
+      .select('*, work_sequences(*)')
+      .eq('employee_id', S.employee.id)
+      .gte('work_date', monthStart)
+      .lte('work_date', yesterday);
+
+    for (const e of entries || []) {
+      const seqMin = (e.work_sequences || []).reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
+      const lMin   = e.lunch_start && e.lunch_end ? minutes(e.lunch_start, e.lunch_end) : 0;
+      const dayMin = Math.max(0, seqMin - lMin);
+      if (e.work_date >= weekStart)  weekMin  += dayMin;
+      if (e.work_date >= monthStart) monthMin += dayMin;
+    }
+  }
+
+  // Today's live data
+  if (S.sequences.length > 0) {
+    const todaySeqMin  = S.sequences.reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
+    const todayLunchMin = lunchMinutes();
+    const todayMin = Math.max(0, todaySeqMin - todayLunchMin);
+    if (today >= weekStart)  weekMin  += todayMin;
+    if (today >= monthStart) monthMin += todayMin;
+  }
+
+  const targetWeekMin = Math.round((S.employee.weekly_hours_target || 35) * 60);
+
+  // Monthly target: prorated on days elapsed since monthStart
+  const dStart    = new Date(monthStart + 'T12:00:00');
+  const dToday    = new Date(today      + 'T12:00:00');
+  const days      = Math.max(1, Math.round((dToday - dStart) / 86400000) + 1);
+  const targetMonthMin = Math.round(targetWeekMin / 7 * days);
+
+  S.balance = { weekMin, monthMin, targetWeekMin, targetMonthMin };
+  renderBalance();
+}
+
+function renderBalance() {
+  const { weekMin, monthMin, targetWeekMin, targetMonthMin } = S.balance || {};
+  if (weekMin == null) return;
+
+  const wDiff = weekMin  - targetWeekMin;
+  const mDiff = monthMin - targetMonthMin;
+
+  document.getElementById('bal-week').textContent  = fmtDur(weekMin);
+  document.getElementById('bal-month').textContent = fmtDur(monthMin);
+
+  document.getElementById('bal-week-target').textContent  = `cible ${fmtDur(targetWeekMin)}`;
+  document.getElementById('bal-month-target').textContent = `cible ${fmtDur(targetMonthMin)}`;
+
+  function setDiff(id, diff) {
+    const el = document.getElementById(id);
+    el.textContent = (diff >= 0 ? '+' : '') + fmtDur(Math.abs(diff));
+    el.className = 'bal-diff ' + (diff > 0 ? 'bal-pos' : diff < 0 ? 'bal-neg' : 'bal-zero');
+  }
+  setDiff('bal-week-diff',  wDiff);
+  setDiff('bal-month-diff', mDiff);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
