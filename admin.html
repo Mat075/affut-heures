@@ -956,12 +956,17 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsamlic3h3emJmYWVzaHRoY2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjgxMzYsImV4cCI6MjA4NzU0NDEzNn0.IqCbjx2k2iLfdSXw97Dl2dVqXmOrpUVTdO_Pzo0yRFk';
 
     // authClient : gère la session Supabase Auth (login, signup, reset…)
+    //             utilisé aussi pour les écritures admin (employees, parcelles)
     const authClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // db : requêtes données uniquement, sans session (les politiques RLS anon restent valides)
+    //      utilisé pour les lectures et les opérations côté salarié
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
     });
+
+    // URL de base pour les liens salariés (ex: https://mat075.github.io/affut-heures/)
+    const BASE_URL = location.origin + location.pathname.replace('admin.html', '');
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STATE
@@ -1383,7 +1388,7 @@
       const bo = parseInt(boInput.value) || 0;
       if (isNaN(wh) || wh <= 0) { toast('⚠️ Heures invalides'); return; }
 
-      const { error } = await db.from('employees')
+      const { error } = await authClient.from('employees')
         .update({ weekly_hours_target: wh, balance_offset_minutes: bo })
         .eq('id', id);
 
@@ -1408,7 +1413,7 @@
       const slug = slugify(fn + ln);
       if (!slug) { toast('⚠️ Noms invalides'); return; }
 
-      const { data, error } = await db.from('employees')
+      const { data, error } = await authClient.from('employees')
         .insert({ slug, first_name: fn, last_name: ln.toUpperCase() })
         .select().single();
 
@@ -1424,7 +1429,7 @@
     async function toggleEmployee(id, isActive) {
       const action = isActive ? 'désactiver' : 'réactiver';
       if (!confirm(`Voulez-vous ${action} ce salarié ?`)) return;
-      await db.from('employees').update({ is_active: !isActive }).eq('id', id);
+      await authClient.from('employees').update({ is_active: !isActive }).eq('id', id);
       const emp = A.employees.find(e => e.id === id);
       if (emp) emp.is_active = !isActive;
       renderEmployees();
