@@ -632,7 +632,9 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const SUPABASE_URL  = 'https://wljibsxwzbfaeshthcku.supabase.co';
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsamlic3h3emJmYWVzaHRoY2t1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NjgxMzYsImV4cCI6MjA4NzU0NDEzNn0.IqCbjx2k2iLfdSXw97Dl2dVqXmOrpUVTdO_Pzo0yRFk';
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // STATE
