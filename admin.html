@@ -14,9 +14,9 @@
     :root {
       --bg:         #F5F2EE;
       --surface:    #FFFFFF;
-      --primary:    #E0004D;
-      --primary-lt: #B8003F;
-      --accent:     #001A72;
+      --primary:    #001A72;
+      --primary-lt: #001050;
+      --accent:     #E0004D;
       --text:       #1C1410;
       --text-muted: #8A7A6A;
       --border:     #E2D8CC;
@@ -96,7 +96,7 @@
       transition: all 0.15s;
     }
     .nav-item:hover { background: var(--bg); color: var(--text); }
-    .nav-item.active { border-left-color: var(--primary); color: var(--primary); background: #F8F0EE; }
+    .nav-item.active { border-left-color: var(--primary); color: var(--primary); background: #EEF2F9; }
     .nav-icon { font-size: 18px; width: 24px; text-align: center; }
     .content { flex: 1; padding: 24px; overflow-x: auto; }
 
@@ -685,9 +685,7 @@ async function loadDashboard() {
 
   let totalWeekMin = 0;
   weekData.forEach(e => {
-    const seqMin  = (e.work_sequences||[]).reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
-    const lunchMin = e.lunch_start && e.lunch_end ? calcMin(e.lunch_start, e.lunch_end) : 0;
-    totalWeekMin += seqMin - lunchMin;
+    totalWeekMin += (e.work_sequences||[]).reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
   });
   document.getElementById('stat-hours').textContent = fmtDur(Math.max(0,totalWeekMin));
 
@@ -701,8 +699,7 @@ async function loadDashboard() {
   todayData.forEach(e => {
     const emp  = e.employees;
     const seqs = e.work_sequences||[];
-    const lunchMin = e.lunch_start && e.lunch_end ? calcMin(e.lunch_start, e.lunch_end) : 0;
-    const dur  = seqs.reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0) - lunchMin;
+    const dur  = seqs.reduce((a,s)=>a+calcMin(s.start_time,s.end_time),0);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-name">${emp?.first_name} ${emp?.last_name}</td>
@@ -889,6 +886,13 @@ function renderEmployees() {
             <span class="emp-setting-unit">min</span>
           </div>
         </div>
+        <div class="emp-setting-group" style="grid-column:1/-1">
+          <div class="emp-setting-label">Solde depuis (date de départ)</div>
+          <div class="emp-setting-row">
+            <input type="date" class="emp-setting-input" id="bd-${emp.id}"
+              value="${emp.balance_start_date || '2026-03-02'}">
+          </div>
+        </div>
         <div style="grid-column:1/-1;margin-top:4px">
           <button class="btn btn-primary btn-sm" style="width:100%" onclick="saveEmpSettings('${emp.id}')">
             ✓ Enregistrer
@@ -903,17 +907,19 @@ function renderEmployees() {
 async function saveEmpSettings(id) {
   const whInput = document.getElementById('wh-' + id);
   const boInput = document.getElementById('bo-' + id);
+  const bdInput = document.getElementById('bd-' + id);
   const wh = parseFloat(whInput.value);
   const bo = parseInt(boInput.value) || 0;
+  const bd = bdInput.value || '2026-03-02';
   if (isNaN(wh) || wh <= 0) { toast('⚠️ Heures invalides'); return; }
 
   const { error } = await db.from('employees')
-    .update({ weekly_hours_target: wh, balance_offset_minutes: bo })
+    .update({ weekly_hours_target: wh, balance_offset_minutes: bo, balance_start_date: bd })
     .eq('id', id);
 
   if (error) { toast('❌ Erreur enregistrement'); return; }
   const emp = A.employees.find(e => e.id === id);
-  if (emp) { emp.weekly_hours_target = wh; emp.balance_offset_minutes = bo; }
+  if (emp) { emp.weekly_hours_target = wh; emp.balance_offset_minutes = bo; emp.balance_start_date = bd; }
   toast(`✓ Paramètres enregistrés`);
 }
 

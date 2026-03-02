@@ -15,9 +15,9 @@
     :root {
       --bg:           #F8F5F0;
       --surface:      #FFFFFF;
-      --primary:      #E0004D;
-      --primary-dk:   #B8003F;
-      --accent:       #001A72;
+      --primary:      #001A72;
+      --primary-dk:   #001050;
+      --accent:       #E0004D;
       --text:         #1C1410;
       --text-muted:   #8A7A6A;
       --border:       #E2D8CC;
@@ -380,8 +380,52 @@
       color: var(--text-muted);
       padding: 5px 0;
       border-bottom: 1px solid #F5F0EA;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
     }
     .hist-seq:last-child { border-bottom: none; }
+    .hist-seq span { flex: 1; }
+    .hist-edit-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 5px;
+      border-radius: 5px;
+      flex-shrink: 0;
+      opacity: 0.55;
+    }
+    .hist-edit-btn:active { background: var(--border); opacity: 1; }
+
+    /* ── MODAL ───────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 20px;
+    }
+    .modal {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 24px;
+      width: 100%; max-width: 360px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .modal-title { font-size: 17px; font-weight: 800; margin-bottom: 16px; color: var(--primary); }
+    .modal-input {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 15px; margin-bottom: 10px;
+      background: var(--bg); font-family: inherit; color: var(--text);
+    }
+    .modal-input:focus { outline: none; border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+    .modal-btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .modal-btn-primary { background: var(--primary); color: white; }
+    .modal-btn-danger  { background: var(--danger);  color: white; }
+    .modal-btn-ghost   { background: var(--border);  color: var(--text-muted); }
 
     /* ── LOADING / ERROR ─────────────────────────── */
     .screen-center {
@@ -451,7 +495,7 @@
 
   <!-- HEADER -->
   <div class="header">
-    <div class="header-logo">Domaine L'Affût</div>
+    <div class="header-logo">L'AFFÛT</div>
     <div class="header-name" id="h-name"></div>
     <div class="header-date" id="h-date"></div>
   </div>
@@ -570,6 +614,15 @@
   </div>
 </div>
 
+<!-- MODAL -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Modifier la séquence</div>
+    <div id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -619,6 +672,11 @@ function fmtDur(min) {
   if (min <= 0) return '0h';
   return min%60 ? `${Math.floor(min/60)}h${p2(min%60)}` : `${Math.floor(min/60)}h`;
 }
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${p2(d.getDate())}/${p2(d.getMonth()+1)} à ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
 function round5(t) {
   if (!t) return t;
   const [h,m] = t.split(':').map(Number);
@@ -639,9 +697,7 @@ function lunchMinutes() {
   return m > 0 ? m : 0;
 }
 function totalToday() {
-  let t = S.sequences.reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0);
-  t -= lunchMinutes();
-  return Math.max(0, t);
+  return Math.max(0, S.sequences.reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0));
 }
 function getMondayISO() {
   const d = new Date(); d.setHours(0,0,0,0);
@@ -813,9 +869,9 @@ function renderHistory() {
     return;
   }
   S.history.forEach(entry => {
-    const seqs = entry.work_sequences || [];
-    const lMin = entry.lunch_start && entry.lunch_end ? minutes(entry.lunch_start, entry.lunch_end) : 0;
-    let tot = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0) - lMin;
+    const seqs     = entry.work_sequences || [];
+    const tot      = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
+    const hasLunch = entry.lunch_start && entry.lunch_end;
 
     const item = document.createElement('div');
     item.className = 'hist-item';
@@ -829,9 +885,17 @@ function renderHistory() {
           const act = S.activities.find(a=>a.id==s.activity_id);
           const par = s.parcel_id ? S.parcels.find(p=>p.id==s.parcel_id) : null;
           const nm  = (act?.is_other && s.other_activity_label) ? s.other_activity_label : act?.name||'?';
-          return `<div class="hist-seq">${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${nm}${par?` · ${par.cvi_number}`:''}</div>`;
+          return `<div class="hist-seq">
+            <span>${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${nm}${par?` · ${par.cvi_number}`:''}</span>
+            <button class="hist-edit-btn" onclick="editHistSeq('${s.id}','${entry.id}')">✏️</button>
+          </div>`;
         }).join('')}
-        ${lMin > 0 ? `<div class="hist-seq">☕ Pause : ${fmtTime(entry.lunch_start)} → ${fmtTime(entry.lunch_end)}</div>` : ''}
+        ${hasLunch ? `<div class="hist-seq" style="pointer-events:none;">
+          <span>☕ ${fmtTime(entry.lunch_start)} → ${fmtTime(entry.lunch_end)}</span>
+        </div>` : ''}
+        ${entry.completed_at ? `<div style="font-size:11px;color:var(--text-muted);padding-top:6px;margin-top:2px;border-top:1px solid #F5F0EA;">
+          ✓ Validé le ${fmtDateTime(entry.completed_at)}
+        </div>` : ''}
       </div>
     `;
     item.querySelector('.hist-header').onclick = () =>
@@ -946,7 +1010,7 @@ async function onFinish() {
   if (!confirm(`Valider votre journée du ${fmtDateLong(todayISO())} ?\n\nTotal : ${total}\n\nCette action enverra un email à Isabelle.`)) return;
 
   const { error } = await db.from('day_entries')
-    .update({ is_complete: true }).eq('id', S.dayEntry.id);
+    .update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', S.dayEntry.id);
   if (error) { toast('❌ Erreur'); return; }
   S.dayEntry.is_complete = true;
   setDone();
@@ -997,21 +1061,21 @@ async function loadBalance() {
 
     for (const e of entries || []) {
       const seqMin = (e.work_sequences || []).reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
-      const lMin   = e.lunch_start && e.lunch_end ? minutes(e.lunch_start, e.lunch_end) : 0;
-      const dayMin = Math.max(0, seqMin - lMin);
+      const dayMin = Math.max(0, seqMin);
       if (e.work_date >= weekStart)  weekMin  += dayMin;
       if (e.work_date >= monthStart) monthMin += dayMin;
     }
   }
 
-  // Today's live data
+  // Today's live data (lunch not deducted — stored for admin tracking only)
   if (S.sequences.length > 0) {
-    const todaySeqMin  = S.sequences.reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
-    const todayLunchMin = lunchMinutes();
-    const todayMin = Math.max(0, todaySeqMin - todayLunchMin);
+    const todayMin = Math.max(0, S.sequences.reduce((a,s) => a + minutes(s.start_time, s.end_time), 0));
     if (today >= weekStart)  weekMin  += todayMin;
     if (today >= monthStart) monthMin += todayMin;
   }
+
+  // Apply admin-defined offset to monthly balance only
+  monthMin += (S.employee.balance_offset_minutes || 0);
 
   const targetWeekMin = Math.round((S.employee.weekly_hours_target || 35) * 60);
 
@@ -1046,6 +1110,83 @@ function renderBalance() {
   setDiff('bal-week-diff',  wDiff);
   setDiff('bal-month-diff', mDiff);
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// EDIT HISTORY SEQUENCES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function editHistSeq(seqId, entryId) {
+  let seq = null;
+  for (const e of S.history) {
+    const s = (e.work_sequences||[]).find(s => s.id === seqId);
+    if (s) { seq = s; break; }
+  }
+  if (!seq) return;
+
+  document.getElementById('modal-title').textContent = 'Modifier la séquence';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.start_time)}" step="300">
+      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <input type="time" id="m-end"   class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.end_time)}"   step="300">
+    </div>
+    <select id="m-act" class="modal-input">
+      ${S.activities.map(a=>`<option value="${a.id}" ${a.id==seq.activity_id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune —</option>
+      ${S.parcels.map(p=>`<option value="${p.id}" ${p.id==seq.parcel_id?'selected':''}>${p.cvi_number} — ${p.cepage}</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire" value="${seq.comment||''}">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="modal-btn modal-btn-ghost"   onclick="closeModal()">Annuler</button>
+    <button class="modal-btn modal-btn-danger"  onclick="deleteHistSeqConfirm('${seqId}')">🗑</button>
+    <button class="modal-btn modal-btn-primary" onclick="saveHistSeq('${seqId}')">Enregistrer</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function saveHistSeq(seqId) {
+  const start = document.getElementById('m-start').value + ':00';
+  const end   = document.getElementById('m-end').value   + ':00';
+  const actId = document.getElementById('m-act').value;
+  const parId = document.getElementById('m-par').value || null;
+  const com   = document.getElementById('m-com').value.trim() || null;
+
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+
+  const { error } = await db.from('work_sequences').update({
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+  }).eq('id', seqId);
+
+  if (error) { toast('❌ Erreur'); return; }
+
+  for (const e of S.history) {
+    const s = (e.work_sequences||[]).find(s => s.id === seqId);
+    if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; break; }
+  }
+  closeModal();
+  renderHistory();
+  toast('✓ Modification enregistrée');
+}
+
+async function deleteHistSeqConfirm(seqId) {
+  if (!confirm('Supprimer définitivement cette séquence ?')) return;
+  const { error } = await db.from('work_sequences').delete().eq('id', seqId);
+  if (error) { toast('❌ Erreur'); return; }
+  for (const e of S.history) {
+    e.work_sequences = (e.work_sequences||[]).filter(s => s.id !== seqId);
+  }
+  closeModal();
+  renderHistory();
+  toast('Séquence supprimée');
+}
+
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // START
