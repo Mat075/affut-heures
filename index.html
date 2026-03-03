@@ -1081,11 +1081,8 @@ async function loadBalance() {
 
   const targetWeekMin = Math.round((S.employee.weekly_hours_target || 35) * 60);
 
-  // Monthly target: prorated on days elapsed since monthStart
-  const dStart    = new Date(monthStart + 'T12:00:00');
-  const dToday    = new Date(today      + 'T12:00:00');
-  const days      = Math.max(1, Math.round((dToday - dStart) / 86400000) + 1);
-  const targetMonthMin = Math.round(targetWeekMin / 7 * days);
+  // Monthly target: full month (weekly target × 52/12)
+  const targetMonthMin = Math.round(targetWeekMin * 52 / 12);
 
   S.balance = { weekMin, monthMin, targetWeekMin, targetMonthMin };
   renderBalance();
