@@ -495,6 +495,62 @@
       .modal { padding: 18px; }
       .total-value { font-size: 26px; }
     }
+
+    /* ── HIST ADD & MODIFIED ─────────────────────── */
+    .hist-add-btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 8px; padding: 9px 14px;
+      background: none; border: 1.5px dashed var(--primary);
+      border-radius: 8px; color: var(--primary);
+      font-size: 13px; font-weight: 700; cursor: pointer; width: 100%;
+      font-family: inherit;
+    }
+    .hist-add-btn:active { background: rgba(0,26,114,0.05); }
+    .hist-modified {
+      font-size: 10px; color: var(--text-muted);
+      padding-top: 5px; margin-top: 4px;
+      border-top: 1px solid #F5F0EA; font-style: italic;
+    }
+
+    /* ── CALENDAR ────────────────────────────────── */
+    .cal-toggle {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; width: 100%; padding: 12px 16px; margin-top: 8px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--r); color: var(--text-muted);
+      font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .cal-toggle:active { background: var(--bg); }
+    .cal-toggle.open { color: var(--primary); border-color: var(--primary); }
+    .cal-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 14px; margin-top: 6px;
+      box-shadow: var(--shadow);
+    }
+    .cal-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cal-nav-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 4px 13px; cursor: pointer; font-size: 20px; line-height: 1.4;
+      color: var(--text-muted); font-family: inherit;
+    }
+    .cal-nav-btn:active { background: var(--border); }
+    .cal-month-year { font-size: 15px; font-weight: 700; color: var(--primary); text-transform: capitalize; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .cal-dow { font-size: 10px; font-weight: 700; text-align: center; color: var(--text-muted); padding: 3px 0 6px; }
+    .cal-day {
+      text-align: center; padding: 6px 2px; border-radius: 6px;
+      font-size: 13px; cursor: pointer; position: relative;
+      min-height: 30px; display: flex; align-items: center; justify-content: center;
+    }
+    .cal-day.today    { background: var(--primary); color: white; font-weight: 800; }
+    .cal-day.selected { background: var(--accent);  color: white; font-weight: 700; }
+    .cal-day.future   { color: #D8D0C8; pointer-events: none; }
+    .cal-day:not(.future):not(.today):not(.selected):hover { background: #EEF0F8; }
+    .cal-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .cal-result-date { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-transform: capitalize; }
   </style>
 </head>
 <body>
@@ -632,6 +688,18 @@
     <div class="section-title mt-6">Historique récent</div>
     <div id="hist-list"></div>
 
+    <!-- CALENDAR DATE PICKER -->
+    <button class="cal-toggle" id="cal-toggle-btn" onclick="toggleCalendar()">📅 Rechercher une date ancienne</button>
+    <div id="cal-panel" class="cal-panel hidden">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calPrevMonth()">‹</button>
+        <span class="cal-month-year" id="cal-month-year"></span>
+        <button class="cal-nav-btn" onclick="calNextMonth()">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div id="cal-result" class="cal-result hidden"></div>
+    </div>
+
     <div style="height:40px"></div>
   </div>
 </div>
@@ -667,7 +735,8 @@ const S = {
   parcels:    [],
   dayEntry:   null,
   sequences:  [],
-  history:    []
+  history:    [],
+  calEntry:   null
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -900,6 +969,7 @@ function renderHistory() {
     const seqs     = entry.work_sequences || [];
     const tot      = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
     const hasLunch = entry.lunch_start && entry.lunch_end;
+    const lm = getLM(entry.id);
 
     const item = document.createElement('div');
     item.className = 'hist-item';
@@ -924,6 +994,8 @@ function renderHistory() {
         ${entry.completed_at ? `<div style="font-size:11px;color:var(--text-muted);padding-top:6px;margin-top:2px;border-top:1px solid #F5F0EA;">
           ✓ Validé le ${fmtDateTime(entry.completed_at)}
         </div>` : ''}
+        ${lm ? `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>` : ''}
+        <button class="hist-add-btn" onclick="addHistSeq('${entry.id}','${entry.work_date}')">+ Ajouter une séquence</button>
       </div>
     `;
     item.querySelector('.hist-header').onclick = () =>
@@ -1186,10 +1258,12 @@ async function saveHistSeq(seqId) {
 
   if (error) { toast('❌ Erreur'); return; }
 
+  let modEntryId = null;
   for (const e of S.history) {
     const s = (e.work_sequences||[]).find(s => s.id === seqId);
-    if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; break; }
+    if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; modEntryId = e.id; break; }
   }
+  if (modEntryId) setLM(modEntryId);
   closeModal();
   renderHistory();
   toast('✓ Modification enregistrée');
@@ -1199,9 +1273,15 @@ async function deleteHistSeqConfirm(seqId) {
   if (!confirm('Supprimer définitivement cette séquence ?')) return;
   const { error } = await db.from('work_sequences').delete().eq('id', seqId);
   if (error) { toast('❌ Erreur'); return; }
+  let delEntryId = null;
   for (const e of S.history) {
-    e.work_sequences = (e.work_sequences||[]).filter(s => s.id !== seqId);
+    if ((e.work_sequences||[]).some(s => s.id === seqId)) {
+      e.work_sequences = e.work_sequences.filter(s => s.id !== seqId);
+      delEntryId = e.id;
+      break;
+    }
   }
+  if (delEntryId) setLM(delEntryId);
   closeModal();
   renderHistory();
   toast('Séquence supprimée');
@@ -1212,6 +1292,235 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 document.getElementById('modal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LAST MODIFIED TIMESTAMPS (localStorage)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function getLM(entryId) {
+  try { return JSON.parse(localStorage.getItem('lm_' + entryId) || 'null'); } catch { return null; }
+}
+function setLM(entryId) {
+  try { localStorage.setItem('lm_' + entryId, JSON.stringify(new Date().toISOString())); } catch {}
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ADD SEQUENCE TO HISTORICAL DAY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function addHistSeq(entryId, workDate) { openAddSeqModal(entryId, workDate, false); }
+function addCalSeq(entryId, workDate)  { openAddSeqModal(entryId || null, workDate, true); }
+
+function openAddSeqModal(entryId, workDate, isCalEntry) {
+  document.getElementById('modal-title').textContent = 'Ajouter · ' + fmtDateLong(workDate);
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="08:00" step="300">
+      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" step="300">
+    </div>
+    <select id="m-act" class="modal-input">
+      <option value="">— Activité —</option>
+      ${S.activities.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune parcelle —</option>
+      ${S.parcels.map(p => `<option value="${p.id}">${esc(p.cvi_number)} — ${esc(p.cepage)}</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire (optionnel)">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="modal-btn modal-btn-ghost" onclick="closeModal()">Annuler</button>
+    <button class="modal-btn modal-btn-primary" onclick="saveNewHistSeq('${entryId || ''}','${workDate}',${isCalEntry})">Ajouter</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function saveNewHistSeq(entryId, workDate, isCalEntry) {
+  const start = document.getElementById('m-start').value;
+  const end   = document.getElementById('m-end').value;
+  const actId = document.getElementById('m-act').value;
+  const parId = document.getElementById('m-par').value || null;
+  const com   = document.getElementById('m-com').value.trim() || null;
+
+  if (!start || !end)                    { toast('⚠️ Renseignez début et fin');   return; }
+  if (!actId)                            { toast('⚠️ Choisissez une activité');   return; }
+  if (minutes(start+':00', end+':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
+
+  let dayEntryId = entryId || null;
+  if (!dayEntryId) {
+    const { data: ne, error: ee } = await db.from('day_entries')
+      .insert({ employee_id: S.employee.id, work_date: workDate }).select().single();
+    if (ee) { toast('❌ Erreur'); return; }
+    dayEntryId = ne.id;
+  }
+
+  const { data: seq, error } = await db.from('work_sequences').insert({
+    day_entry_id: dayEntryId,
+    start_time:   start + ':00',
+    end_time:     end   + ':00',
+    activity_id:  actId,
+    parcel_id:    parId,
+    comment:      com
+  }).select().single();
+
+  if (error) { toast('❌ Erreur lors de l\'enregistrement'); console.error(error); return; }
+  setLM(dayEntryId);
+  closeModal();
+
+  if (isCalEntry) {
+    await calSelectDate(workDate);
+  } else {
+    const he = S.history.find(e => e.id === dayEntryId || e.id === entryId);
+    if (he) { he.work_sequences = he.work_sequences || []; he.work_sequences.push(seq); }
+    renderHistory();
+  }
+  toast('✓ Séquence ajoutée');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CALENDAR DATE PICKER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const CAL = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+
+function toggleCalendar() {
+  const panel = document.getElementById('cal-panel');
+  const btn   = document.getElementById('cal-toggle-btn');
+  const nowHidden = panel.classList.toggle('hidden');
+  btn.classList.toggle('open', !nowHidden);
+  if (!nowHidden) renderCal();
+}
+
+function renderCal() {
+  document.getElementById('cal-month-year').textContent = MONTHS[CAL.month] + ' ' + CAL.year;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  ['Lu','Ma','Me','Je','Ve','Sa','Di'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow'; el.textContent = d;
+    grid.appendChild(el);
+  });
+  const today   = todayISO();
+  const lastDay = new Date(CAL.year, CAL.month + 1, 0).getDate();
+  let startDow  = new Date(CAL.year, CAL.month, 1).getDay() - 1;
+  if (startDow < 0) startDow = 6;
+  for (let i = 0; i < startDow; i++)
+    grid.appendChild(Object.assign(document.createElement('div'), { className: 'cal-day' }));
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${CAL.year}-${p2(CAL.month + 1)}-${p2(d)}`;
+    const el  = document.createElement('div');
+    el.className = 'cal-day'; el.textContent = d;
+    if      (iso > today)                 el.classList.add('future');
+    else if (iso === CAL.selectedDate)    el.classList.add('selected');
+    else if (iso === today)               el.classList.add('today');
+    else                                  el.onclick = () => calSelectDate(iso);
+    grid.appendChild(el);
+  }
+}
+
+function calPrevMonth() {
+  if (--CAL.month < 0) { CAL.month = 11; CAL.year--; }
+  renderCal();
+}
+function calNextMonth() {
+  const now = new Date();
+  if (CAL.year > now.getFullYear() || (CAL.year === now.getFullYear() && CAL.month >= now.getMonth())) return;
+  if (++CAL.month > 11) { CAL.month = 0; CAL.year++; }
+  renderCal();
+}
+
+async function calSelectDate(iso) {
+  CAL.selectedDate = iso;
+  renderCal();
+  const result = document.getElementById('cal-result');
+  result.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:6px 0">Chargement…</div>';
+  result.classList.remove('hidden');
+  const { data: entry } = await db.from('day_entries')
+    .select('*, work_sequences(*)')
+    .eq('employee_id', S.employee.id)
+    .eq('work_date', iso)
+    .single();
+  S.calEntry = entry || null;
+  renderCalResult(iso, entry);
+}
+
+function renderCalResult(iso, entry) {
+  const result = document.getElementById('cal-result');
+  const seqs   = (entry?.work_sequences || []).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const lm     = entry ? getLM(entry.id) : null;
+
+  let html = `<div class="cal-result-date">${fmtDateLong(iso)}</div>`;
+  if (!seqs.length) {
+    html += '<div class="empty" style="padding:4px 0 8px">Aucune séquence enregistrée</div>';
+  } else {
+    seqs.forEach(s => {
+      const act = S.activities.find(a => a.id == s.activity_id);
+      const par = s.parcel_id ? S.parcels.find(p => p.id == s.parcel_id) : null;
+      const nm  = (act?.is_other && s.other_activity_label) ? s.other_activity_label : act?.name || '?';
+      html += `<div class="hist-seq">
+        <span>${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${esc(nm)}${par ? ` · ${esc(par.cvi_number)}` : ''}</span>
+        <button class="hist-edit-btn" onclick="editCalSeq('${s.id}','${iso}')">✏️</button>
+      </div>`;
+    });
+    const tot = seqs.reduce((a, s) => a + minutes(s.start_time, s.end_time), 0);
+    html += `<div style="font-size:13px;font-weight:700;color:var(--accent);padding:5px 0">${fmtDur(Math.max(0, tot))}</div>`;
+  }
+  if (lm) html += `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>`;
+  html += `<button class="hist-add-btn" onclick="addCalSeq('${entry?.id || ''}','${iso}')">+ Ajouter une séquence</button>`;
+  result.innerHTML = html;
+}
+
+function editCalSeq(seqId, workDate) {
+  const seq = (S.calEntry?.work_sequences || []).find(s => s.id === seqId);
+  if (!seq) return;
+  document.getElementById('modal-title').textContent = 'Modifier · ' + fmtDateLong(workDate);
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.start_time)}" step="300">
+      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.end_time)}" step="300">
+    </div>
+    <select id="m-act" class="modal-input">
+      ${S.activities.map(a => `<option value="${a.id}" ${a.id == seq.activity_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune —</option>
+      ${S.parcels.map(p => `<option value="${p.id}" ${p.id == seq.parcel_id ? 'selected' : ''}>${esc(p.cvi_number)} — ${esc(p.cepage)}</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire" value="${esc(seq.comment || '')}">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="modal-btn modal-btn-ghost"  onclick="closeModal()">Annuler</button>
+    <button class="modal-btn modal-btn-danger" onclick="deleteCalSeq('${seqId}','${workDate}')">🗑</button>
+    <button class="modal-btn modal-btn-primary" onclick="saveCalSeq('${seqId}','${workDate}')">Enregistrer</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function saveCalSeq(seqId, workDate) {
+  const start = document.getElementById('m-start').value + ':00';
+  const end   = document.getElementById('m-end').value   + ':00';
+  const actId = document.getElementById('m-act').value;
+  const parId = document.getElementById('m-par').value || null;
+  const com   = document.getElementById('m-com').value.trim() || null;
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  const { error } = await db.from('work_sequences').update({
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+  }).eq('id', seqId);
+  if (error) { toast('❌ Erreur'); return; }
+  if (S.calEntry) setLM(S.calEntry.id);
+  closeModal();
+  await calSelectDate(workDate);
+  toast('✓ Modification enregistrée');
+}
+
+async function deleteCalSeq(seqId, workDate) {
+  if (!confirm('Supprimer définitivement cette séquence ?')) return;
+  const { error } = await db.from('work_sequences').delete().eq('id', seqId);
+  if (error) { toast('❌ Erreur'); return; }
+  if (S.calEntry) setLM(S.calEntry.id);
+  closeModal();
+  await calSelectDate(workDate);
+  toast('Séquence supprimée');
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // START
