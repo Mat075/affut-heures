@@ -311,6 +311,7 @@
       font-weight: 700;
       cursor: pointer;
       transition: opacity 0.15s;
+      min-height: 44px;
     }
 
     .btn:hover {
@@ -681,14 +682,79 @@
       transform: translateX(-50%) translateY(0);
     }
 
-    @media (max-width: 640px) {
-      .sidebar {
-        display: none;
-      }
+    /* ── MOBILE BOTTOM NAV ──────────────────────── */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 50;
+      justify-content: space-around;
+      padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+    }
 
-      .content {
-        padding: 16px;
-      }
+    .mobile-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 0;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      -webkit-tap-highlight-color: transparent;
+      transition: color 0.15s;
+    }
+
+    .mobile-nav-item.active { color: var(--primary); }
+    .mobile-nav-icon { font-size: 20px; line-height: 1; }
+
+    @media (max-width: 640px) {
+      /* Header */
+      .header { height: auto; padding: 10px 12px; flex-wrap: nowrap; gap: 8px; }
+      .header-brand { font-size: 13px; }
+      .header-sub { font-size: 10px; }
+      .btn-label { display: none; }
+      .header-btns { gap: 6px; }
+      .header-btns .btn { padding: 8px 10px; font-size: 18px; line-height: 1; min-width: 40px; min-height: 40px; }
+
+      /* Layout */
+      .sidebar { display: none; }
+      .mobile-nav { display: flex; }
+      .content { padding: 14px; padding-bottom: 80px; }
+
+      /* Tables scrollables */
+      .table-wrap { overflow-x: auto; }
+
+      /* Filters empilés */
+      .filters { flex-direction: column; }
+      .filter-group { width: 100%; }
+      .filter-control { min-width: unset; width: 100%; }
+
+      /* Grille salariés */
+      .emp-grid { grid-template-columns: 1fr; }
+      .add-emp-form { max-width: 100%; }
+      .emp-settings { grid-template-columns: 1fr; }
+
+      /* Formulaire d'ajout salarié */
+      .form-row { flex-direction: column; }
+
+      /* Modal */
+      .modal { padding: 20px; max-width: 100%; }
+
+      /* Titres */
+      .panel-title { font-size: 18px; margin-bottom: 14px; }
+
+      /* Toast au-dessus de la nav */
+      .toast { bottom: 76px; }
     }
   </style>
 </head>
@@ -762,9 +828,9 @@
         <div class="header-sub">Isabelle</div>
       </div>
       <div class="header-btns">
-        <button class="btn btn-accent" onclick="exportExcel()">⬇ Export Excel</button>
-        <button class="btn btn-ghost" onclick="openChangePwd()">🔑 Mot de passe</button>
-        <button class="btn btn-ghost" onclick="doLogout()">Déconnexion</button>
+        <button class="btn btn-accent" onclick="exportExcel()">⬇ <span class="btn-label">Export Excel</span></button>
+        <button class="btn btn-ghost" onclick="openChangePwd()">🔑 <span class="btn-label">Mot de passe</span></button>
+        <button class="btn btn-ghost" onclick="doLogout()">🚪 <span class="btn-label">Déconnexion</span></button>
       </div>
     </div>
 
@@ -935,6 +1001,23 @@
 
       </div><!-- /content -->
     </div><!-- /layout -->
+
+    <!-- Navigation mobile (visible < 640px) -->
+    <nav class="mobile-nav" id="mobile-nav">
+      <div class="mobile-nav-item active" data-panel="dashboard" onclick="nav('dashboard')">
+        <span class="mobile-nav-icon">📊</span>Bord
+      </div>
+      <div class="mobile-nav-item" data-panel="saisies" onclick="nav('saisies')">
+        <span class="mobile-nav-icon">📋</span>Saisies
+      </div>
+      <div class="mobile-nav-item" data-panel="employes" onclick="nav('employes')">
+        <span class="mobile-nav-icon">👤</span>Salariés
+      </div>
+      <div class="mobile-nav-item" data-panel="parcelles" onclick="nav('parcelles')">
+        <span class="mobile-nav-icon">🍇</span>Parcelles
+      </div>
+    </nav>
+
   </div><!-- /admin-app -->
 
   <!-- ── MODAL ─────────────────────────────────────── -->
@@ -1134,9 +1217,9 @@
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     function nav(id) {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.classList.remove('active'));
       document.getElementById('panel-' + id).classList.add('active');
-      document.querySelector(`[data-panel="${id}"]`).classList.add('active');
+      document.querySelectorAll(`[data-panel="${id}"]`).forEach(el => el.classList.add('active'));
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
