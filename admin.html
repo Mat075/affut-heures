@@ -1348,7 +1348,7 @@
       <div class="emp-slug">/${emp.slug}</div>
       <div class="emp-url">${url}</div>
       <div class="emp-actions">
-        <button class="btn btn-ghost btn-sm" onclick="copyUrl('${url}')">📋 Copier le lien</button>
+        <button class="btn btn-ghost btn-sm" onclick="openUrl('${url}')">🔗 Ouvrir le lien</button>
         <button class="btn btn-danger btn-sm" onclick="toggleEmployee('${emp.id}', ${emp.is_active})">
           ${emp.is_active ? 'Désactiver' : 'Réactiver'}
         </button>
@@ -1436,8 +1436,8 @@
       toast(`Salarié ${isActive ? 'désactivé' : 'réactivé'}`);
     }
 
-    function copyUrl(url) {
-      navigator.clipboard.writeText(url).then(() => toast('✓ Lien copié !'));
+    function openUrl(url) {
+       window.open(url, '_blank');
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
