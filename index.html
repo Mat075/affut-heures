@@ -216,6 +216,16 @@
       padding-top: 6px;
     }
 
+    /* ── MODAL TIME ROW ──────────────────────────── */
+    .modal-time-row {
+      display: grid;
+      grid-template-columns: 1fr 24px 1fr;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .modal-time-row > span { text-align: center; color: var(--text-muted); }
+
     /* ── FORM ACTIONS ────────────────────────────── */
     .form-actions {
       display: grid;
@@ -484,6 +494,11 @@
       }
       .time-arrow { text-align: left; padding: 0; font-size: 14px; }
       .lunch-card { flex-direction: column; align-items: stretch; }
+      .modal-time-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+      .modal-time-row > span { text-align: left; font-size: 14px; }
     }
     @media (max-width: 360px) {
       body { max-width: 100%; }
@@ -1221,9 +1236,9 @@ function editHistSeq(seqId, entryId) {
 
   document.getElementById('modal-title').textContent = 'Modifier la séquence';
   document.getElementById('modal-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+    <div class="modal-time-row">
       <input type="time" id="m-start" class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.start_time)}" step="300">
-      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <span>→</span>
       <input type="time" id="m-end"   class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.end_time)}"   step="300">
     </div>
     <select id="m-act" class="modal-input">
@@ -1312,9 +1327,9 @@ function addCalSeq(entryId, workDate)  { openAddSeqModal(entryId || null, workDa
 function openAddSeqModal(entryId, workDate, isCalEntry) {
   document.getElementById('modal-title').textContent = 'Ajouter · ' + fmtDateLong(workDate);
   document.getElementById('modal-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+    <div class="modal-time-row">
       <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="08:00" step="300">
-      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <span>→</span>
       <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" step="300">
     </div>
     <select id="m-act" class="modal-input">
@@ -1349,7 +1364,11 @@ async function saveNewHistSeq(entryId, workDate, isCalEntry) {
   if (!dayEntryId) {
     const { data: ne, error: ee } = await db.from('day_entries')
       .insert({ employee_id: S.employee.id, work_date: workDate }).select().single();
-    if (ee) { toast('❌ Erreur'); return; }
+    if (ee) {
+      console.error('day_entries insert error:', ee);
+      toast('❌ Impossible d\'enregistrer pour ce jour passé. Demandez à l\'administrateur de créer la journée.');
+      return;
+    }
     dayEntryId = ne.id;
   }
 
@@ -1362,7 +1381,7 @@ async function saveNewHistSeq(entryId, workDate, isCalEntry) {
     comment:      com
   }).select().single();
 
-  if (error) { toast('❌ Erreur lors de l\'enregistrement'); console.error(error); return; }
+  if (error) { console.error('work_sequences insert error:', error); toast('❌ Erreur lors de l\'enregistrement'); return; }
   setLM(dayEntryId);
   closeModal();
 
@@ -1473,9 +1492,9 @@ function editCalSeq(seqId, workDate) {
   if (!seq) return;
   document.getElementById('modal-title').textContent = 'Modifier · ' + fmtDateLong(workDate);
   document.getElementById('modal-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;align-items:center;margin-bottom:10px;">
+    <div class="modal-time-row">
       <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.start_time)}" step="300">
-      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <span>→</span>
       <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.end_time)}" step="300">
     </div>
     <select id="m-act" class="modal-input">
