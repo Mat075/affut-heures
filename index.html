@@ -761,6 +761,8 @@ const DAYS   = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi
 const MONTHS = ['janvier','février','mars','avril','mai','juin',
                 'juillet','août','septembre','octobre','novembre','décembre'];
 
+function is5min(hhmm) { return parseInt(hhmm.substring(3, 5)) % 5 === 0; }
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
@@ -1265,7 +1267,8 @@ async function saveHistSeq(seqId) {
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
 
-  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (minutes(start, end) <= 0)               { toast('⚠️ Fin doit être après début'); return; }
+  if (!is5min(start) || !is5min(end))         { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
 
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
@@ -1356,9 +1359,10 @@ async function saveNewHistSeq(entryId, workDate, isCalEntry) {
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
 
-  if (!start || !end)                    { toast('⚠️ Renseignez début et fin');   return; }
-  if (!actId)                            { toast('⚠️ Choisissez une activité');   return; }
-  if (minutes(start+':00', end+':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (!start || !end)                          { toast('⚠️ Renseignez début et fin');   return; }
+  if (!actId)                                  { toast('⚠️ Choisissez une activité');   return; }
+  if (minutes(start+':00', end+':00') <= 0)    { toast('⚠️ Fin doit être après début'); return; }
+  if (!is5min(start) || !is5min(end))          { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
 
   let dayEntryId = entryId || null;
   if (!dayEntryId) {
@@ -1520,7 +1524,8 @@ async function saveCalSeq(seqId, workDate) {
   const actId = document.getElementById('m-act').value;
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
-  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (minutes(start, end) <= 0)       { toast('⚠️ Fin doit être après début'); return; }
+  if (!is5min(start) || !is5min(end)) { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
   }).eq('id', seqId);
