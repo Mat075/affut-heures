@@ -1076,6 +1076,11 @@
       const d = new Date(iso + 'T12:00:00');
       return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
     }
+    function fmtDateTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    }
     function fmtTime(t) { return t ? t.substring(0, 5) : '--:--'; }
     function calcMin(s, e) {
       const [sh, sm] = s.substring(0, 5).split(':').map(Number);
@@ -1596,7 +1601,7 @@
       const dateEnd = document.getElementById('f-date-end').value || todayISO();
 
       const { data } = await db.from('work_sequences')
-        .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete,
+        .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete, created_at, updated_at,
              employees(first_name, last_name))`)
         .gte('day_entries.work_date', dateStart)
         .lte('day_entries.work_date', dateEnd)
@@ -1621,7 +1626,10 @@
           'N° CVI': par?.cvi_number || '',
           'Cépage': par?.cepage || '',
           'Commentaire': seq.comment || '',
-          'Statut': entry?.is_complete ? 'Validée' : 'En cours'
+          'Statut': entry?.is_complete ? 'Validée' : 'En cours',
+          'Séquence saisie le': fmtDateTime(seq.created_at),
+          'Séquence modifiée le': fmtDateTime(seq.updated_at),
+          'Journée modifiée le': fmtDateTime(entry?.updated_at)
         };
       });
 
