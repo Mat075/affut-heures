@@ -846,6 +846,9 @@
         <div class="nav-item" data-panel="employes" onclick="nav('employes')">
           <span class="nav-icon">👤</span> Salariés
         </div>
+        <div class="nav-item" data-panel="sequences" onclick="nav('sequences')">
+          <span class="nav-icon">📝</span> Séquences
+        </div>
         <div class="nav-item" data-panel="parcelles" onclick="nav('parcelles')">
           <span class="nav-icon">🍇</span> Parcelles
         </div>
@@ -922,7 +925,6 @@
               </select>
             </div>
             <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
-            <button class="btn btn-primary" onclick="openAddSeqAdmin()">+ Ajouter une séquence</button>
           </div>
 
           <div class="table-wrap">
@@ -974,6 +976,52 @@
           </div>
         </div>
 
+        <!-- ─── SÉQUENCES ─────────────────────────── -->
+        <div class="panel" id="panel-sequences">
+          <div class="panel-title">Gestion des séquences</div>
+
+          <div style="margin-bottom:18px;">
+            <button class="btn btn-primary" onclick="openAddSeqAdmin()">+ Ajouter une séquence</button>
+          </div>
+
+          <div class="filters">
+            <div class="filter-group">
+              <div class="filter-label">Salarié</div>
+              <select id="sm-emp" class="filter-control" onchange="loadSeqManage()">
+                <option value="">Tous</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <div class="filter-label">Date début</div>
+              <input type="date" id="sm-date-start" class="filter-control" oninput="loadSeqManage()">
+            </div>
+            <div class="filter-group">
+              <div class="filter-label">Date fin</div>
+              <input type="date" id="sm-date-end" class="filter-control" oninput="loadSeqManage()">
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Salarié</th>
+                  <th>Horaire</th>
+                  <th>Durée</th>
+                  <th>Activité</th>
+                  <th>Commentaire</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="sm-tbody">
+                <tr><td colspan="7" class="loading-table">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="sm-count" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:right;"></div>
+        </div>
+
         <!-- ─── PARCELLES ─────────────────────────── -->
         <div class="panel parcel-table" id="panel-parcelles">
           <div class="panel-title">Gestion des parcelles</div>
@@ -1013,6 +1061,9 @@
       </div>
       <div class="mobile-nav-item" data-panel="employes" onclick="nav('employes')">
         <span class="mobile-nav-icon">👤</span>Salariés
+      </div>
+      <div class="mobile-nav-item" data-panel="sequences" onclick="nav('sequences')">
+        <span class="mobile-nav-icon">📝</span>Séquences
       </div>
       <div class="mobile-nav-item" data-panel="parcelles" onclick="nav('parcelles')">
         <span class="mobile-nav-icon">🍇</span>Parcelles
@@ -1200,13 +1251,21 @@
       document.getElementById('f-date-start').value = mondayISO();
       document.getElementById('f-date-end').value = todayISO();
 
-      // Fill employee filter
-      const empSel = document.getElementById('f-emp');
+      // Fill employee filters (saisies + sequences panels)
+      const empSel   = document.getElementById('f-emp');
+      const empSelSm = document.getElementById('sm-emp');
       A.employees.forEach(e => {
-        const o = document.createElement('option');
-        o.value = e.id; o.textContent = `${e.first_name} ${e.last_name}`;
-        empSel.appendChild(o);
+        const label = `${e.first_name} ${e.last_name}`;
+        [empSel, empSelSm].forEach(sel => {
+          const o = document.createElement('option');
+          o.value = e.id; o.textContent = label;
+          sel.appendChild(o);
+        });
       });
+
+      // Default dates for sequences panel (this week)
+      document.getElementById('sm-date-start').value = mondayISO();
+      document.getElementById('sm-date-end').value   = todayISO();
 
       // Fill activity filter
       const actSel = document.getElementById('f-act');
@@ -1230,6 +1289,12 @@
       document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.classList.remove('active'));
       document.getElementById('panel-' + id).classList.add('active');
       document.querySelectorAll(`[data-panel="${id}"]`).forEach(el => el.classList.add('active'));
+      if (id === 'sequences') loadSeqManage();
+    }
+
+    function refreshCurrent() {
+      if (document.getElementById('panel-sequences').classList.contains('active')) loadSeqManage();
+      else loadSaisies();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1416,7 +1481,7 @@
       if (error) { toast('❌ Erreur'); return; }
       closeModal();
       toast('✓ Modification enregistrée');
-      loadSaisies();
+      refreshCurrent();
     }
 
     function openAddSeqAdmin() {
@@ -1494,7 +1559,55 @@
       if (error) { console.error(error); toast('❌ Erreur lors de l\'enregistrement'); return; }
       closeModal();
       toast('✓ Séquence ajoutée');
-      loadSaisies();
+      refreshCurrent();
+    }
+
+    async function loadSeqManage() {
+      const tbody = document.getElementById('sm-tbody');
+      tbody.innerHTML = '<tr><td colspan="7" class="loading-table">Chargement…</td></tr>';
+      const empId     = document.getElementById('sm-emp').value;
+      const dateStart = document.getElementById('sm-date-start').value;
+      const dateEnd   = document.getElementById('sm-date-end').value;
+
+      let q = db.from('work_sequences')
+        .select('*, day_entries!inner(work_date, employee_id, employees(first_name, last_name))')
+        .order('day_entries(work_date)', { ascending: false })
+        .order('start_time');
+      if (dateStart) q = q.gte('day_entries.work_date', dateStart);
+      if (dateEnd)   q = q.lte('day_entries.work_date', dateEnd);
+      if (empId)     q = q.eq('day_entries.employee_id', empId);
+
+      const { data, error } = await q;
+      if (error) { console.error(error); tbody.innerHTML = '<tr><td colspan="7" class="empty-table">Erreur</td></tr>'; return; }
+      A.allSeqs = data || [];
+      renderSeqManage(A.allSeqs);
+    }
+
+    function renderSeqManage(rows) {
+      const tbody = document.getElementById('sm-tbody');
+      document.getElementById('sm-count').textContent = rows.length ? `${rows.length} séquence(s)` : '';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-table">Aucune séquence pour cette période</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      rows.forEach(seq => {
+        const entry   = seq.day_entries;
+        const emp     = entry?.employees;
+        const act     = A.activities.find(a => a.id == seq.activity_id);
+        const actName = (act?.is_other && seq.other_activity_label) ? seq.other_activity_label : act?.name || '?';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="white-space:nowrap">${fmtDate(entry?.work_date)}</td>
+          <td>${esc(emp?.first_name || '')} ${esc(emp?.last_name || '')}</td>
+          <td class="td-time">${fmtTime(seq.start_time)} → ${fmtTime(seq.end_time)}</td>
+          <td class="td-dur">${fmtDur(calcMin(seq.start_time, seq.end_time))}</td>
+          <td>${esc(actName)}</td>
+          <td>${esc(seq.comment || '—')}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="editSeq('${seq.id}')">✏️</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     async function deleteSeqAdmin(id) {
@@ -1502,7 +1615,7 @@
       await db.from('work_sequences').delete().eq('id', id);
       closeModal();
       toast('Séquence supprimée');
-      loadSaisies();
+      refreshCurrent();
     }
 
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
