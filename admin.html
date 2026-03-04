@@ -922,6 +922,7 @@
               </select>
             </div>
             <button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser</button>
+            <button class="btn btn-primary" onclick="openAddSeqAdmin()">+ Ajouter une séquence</button>
           </div>
 
           <div class="table-wrap">
@@ -1396,12 +1397,17 @@
       document.getElementById('modal').classList.remove('hidden');
     }
 
+    function is5min(hhmm) { return parseInt(hhmm.substring(3, 5)) % 5 === 0; }
+
     async function saveSeqAdmin(id) {
       const start = document.getElementById('m-start').value + ':00';
       const end = document.getElementById('m-end').value + ':00';
       const actId = document.getElementById('m-act').value;
       const parId = document.getElementById('m-par').value || null;
       const com = document.getElementById('m-com').value.trim() || null;
+
+      if (calcMin(start, end) <= 0)     { toast('⚠️ Fin doit être après début'); return; }
+      if (!is5min(start) || !is5min(end)) { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
 
       const { error } = await db.from('work_sequences').update({
         start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
@@ -1410,6 +1416,84 @@
       if (error) { toast('❌ Erreur'); return; }
       closeModal();
       toast('✓ Modification enregistrée');
+      loadSaisies();
+    }
+
+    function openAddSeqAdmin() {
+      const today = todayISO();
+      document.getElementById('modal-title').textContent = 'Ajouter une séquence';
+      document.getElementById('modal-body').innerHTML = `
+    <select id="m-emp" class="modal-input">
+      <option value="">— Choisir un salarié —</option>
+      ${A.employees.filter(e => e.is_active).map(e => `<option value="${e.id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('')}
+    </select>
+    <input type="date" id="m-date" class="modal-input" max="${today}" value="${today}">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px;">
+      <input type="time" id="m-start" class="modal-input" style="margin:0" step="300">
+      <span style="text-align:center;color:var(--text-muted)">→</span>
+      <input type="time" id="m-end"   class="modal-input" style="margin:0" step="300">
+    </div>
+    <select id="m-act" class="modal-input">
+      <option value="">— Activité —</option>
+      ${A.activities.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune parcelle —</option>
+      ${A.parcels.map(p => `<option value="${p.id}">${esc(p.cvi_number)} — ${esc(p.cepage)} (${esc(p.lieu_dit)})</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire (optionnel)">
+  `;
+      document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="saveAddSeqAdmin()">Ajouter</button>
+  `;
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    async function saveAddSeqAdmin() {
+      const empId = document.getElementById('m-emp').value;
+      const date  = document.getElementById('m-date').value;
+      const start = document.getElementById('m-start').value;
+      const end   = document.getElementById('m-end').value;
+      const actId = document.getElementById('m-act').value;
+      const parId = document.getElementById('m-par').value || null;
+      const com   = document.getElementById('m-com').value.trim() || null;
+
+      if (!empId)                               { toast('⚠️ Choisissez un salarié');   return; }
+      if (!date)                                { toast('⚠️ Choisissez une date');      return; }
+      if (!start || !end)                       { toast('⚠️ Renseignez début et fin');  return; }
+      if (!actId)                               { toast('⚠️ Choisissez une activité'); return; }
+      if (calcMin(start + ':00', end + ':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
+      if (!is5min(start) || !is5min(end))       { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
+
+      // Trouver ou créer le day_entry
+      let { data: entry } = await db.from('day_entries')
+        .select('id')
+        .eq('employee_id', empId)
+        .eq('work_date', date)
+        .maybeSingle();
+
+      if (!entry) {
+        const { data: newEntry, error: ee } = await db.from('day_entries')
+          .insert({ employee_id: empId, work_date: date })
+          .select()
+          .single();
+        if (ee) { console.error(ee); toast('❌ Erreur lors de la création de la journée'); return; }
+        entry = newEntry;
+      }
+
+      const { error } = await db.from('work_sequences').insert({
+        day_entry_id: entry.id,
+        start_time:   start + ':00',
+        end_time:     end   + ':00',
+        activity_id:  actId,
+        parcel_id:    parId,
+        comment:      com
+      });
+
+      if (error) { console.error(error); toast('❌ Erreur lors de l\'enregistrement'); return; }
+      closeModal();
+      toast('✓ Séquence ajoutée');
       loadSaisies();
     }
 
