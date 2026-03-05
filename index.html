@@ -379,7 +379,14 @@
     }
     .hist-date { font-size: 15px; font-weight: 600; text-transform: capitalize; }
     .hist-total { font-size: 15px; color: var(--accent); font-weight: 700; }
-    .hist-pending { display:inline-block; width:10px; height:10px; border-radius:2px; background:#22c55e; margin-left:6px; vertical-align:middle; }
+    .hist-finish-btn {
+      margin-top: 8px; padding: 12px; width: 100%;
+      background: var(--success); color: white;
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 800; cursor: pointer;
+      font-family: inherit;
+    }
+    .hist-finish-btn:active { opacity: 0.85; transform: scale(0.98); }
     .hist-body {
       display: none;
       padding: 0 16px 14px;
@@ -994,7 +1001,7 @@ function renderHistory() {
     item.innerHTML = `
       <div class="hist-header">
         <span class="hist-date">${fmtDateLong(entry.work_date)}</span>
-        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete ? '✓' : seqs.length ? '<span class="hist-pending" title="À terminer"></span>' : ''}</span>
+        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete ? '✓' : ''}</span>
       </div>
       <div class="hist-body" id="hb-${entry.id}">
         ${seqs.map(s=>{
@@ -1014,6 +1021,7 @@ function renderHistory() {
         </div>` : ''}
         ${lm ? `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>` : ''}
         <button class="hist-add-btn" onclick="addHistSeq('${entry.id}','${entry.work_date}')">+ Ajouter une séquence</button>
+        ${!entry.is_complete && seqs.length ? `<button class="hist-finish-btn" onclick="finishHistDay('${entry.id}',this)">✓ Terminer ma journée</button>` : ''}
       </div>
     `;
     item.querySelector('.hist-header').onclick = () =>
@@ -1326,6 +1334,23 @@ function setLM(entryId) {
 // ADD SEQUENCE TO HISTORICAL DAY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function addHistSeq(entryId, workDate) { openAddSeqModal(entryId, workDate, false); }
+
+async function finishHistDay(entryId, btn) {
+  const entry = S.history.find(e => e.id === entryId);
+  if (!entry) return;
+  const tot = (entry.work_sequences || []).reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
+  if (!confirm(`Valider la journée du ${fmtDateLong(entry.work_date)} ?\n\nTotal : ${fmtDur(tot)}`)) return;
+  const { error } = await db.from('day_entries')
+    .update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', entryId);
+  if (error) { toast('❌ Erreur'); return; }
+  entry.is_complete = true;
+  // Mettre à jour le header : remplacer la durée par durée + ✓
+  const histItem = btn.closest('.hist-item');
+  const totalEl = histItem.querySelector('.hist-total');
+  totalEl.textContent = fmtDur(Math.max(0, tot)) + ' ✓';
+  btn.remove();
+  toast('✅ Journée validée !', 3000);
+}
 function addCalSeq(entryId, workDate)  { openAddSeqModal(entryId || null, workDate, true); }
 
 function openAddSeqModal(entryId, workDate, isCalEntry) {
