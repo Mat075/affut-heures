@@ -379,6 +379,7 @@
     }
     .hist-date { font-size: 15px; font-weight: 600; text-transform: capitalize; }
     .hist-total { font-size: 15px; color: var(--accent); font-weight: 700; }
+    .hist-pending { display:inline-block; width:10px; height:10px; border-radius:2px; background:#22c55e; margin-left:6px; vertical-align:middle; }
     .hist-body {
       display: none;
       padding: 0 16px 14px;
@@ -993,7 +994,7 @@ function renderHistory() {
     item.innerHTML = `
       <div class="hist-header">
         <span class="hist-date">${fmtDateLong(entry.work_date)}</span>
-        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete?'✓':''}</span>
+        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete ? '✓' : seqs.length ? '<span class="hist-pending" title="À terminer"></span>' : ''}</span>
       </div>
       <div class="hist-body" id="hb-${entry.id}">
         ${seqs.map(s=>{
