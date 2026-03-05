@@ -1434,7 +1434,7 @@
       const name = document.getElementById('a-name').value.trim();
       if (!name) { toast('⚠️ Nom requis'); return; }
 
-      const { data, error } = await db.from('activities')
+      const { data, error } = await authClient.from('activities')
         .insert({ name, order_index: A.activities.length })
         .select().single();
 
@@ -1446,7 +1446,7 @@
     }
 
     async function toggleActivity(id, isActive) {
-      await db.from('activities').update({ is_active: !isActive }).eq('id', id);
+      await authClient.from('activities').update({ is_active: !isActive }).eq('id', id);
       const a = A.activities.find(a => a.id == id);
       if (a) a.is_active = !isActive;
       renderActivities();
