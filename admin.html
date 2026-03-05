@@ -1446,7 +1446,10 @@
     }
 
     async function toggleActivity(id, isActive) {
+      const session = await authClient.auth.getSession();
+      console.log('session user:', session?.data?.session?.user?.email, '| id:', id, '| isActive:', isActive);
       const { error } = await authClient.from('activities').update({ is_active: !isActive }).eq('id', id);
+      console.log('update error:', error);
       if (error) { console.error('toggleActivity', error); toast('❌ Erreur : ' + error.message); return; }
       const a = A.activities.find(a => a.id == id);
       if (a) a.is_active = !isActive;
