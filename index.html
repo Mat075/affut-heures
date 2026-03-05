@@ -201,6 +201,51 @@
     }
     textarea.form-control { resize: none; }
 
+    /* ── TIME SELECT ─────────────────────────────── */
+    .time-select {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .time-select select {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      font-family: inherit;
+      width: 100%;
+    }
+    .time-select select:focus { outline: none; border-color: var(--primary); background: #fff; }
+    .modal-time-select {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+    .modal-time-select select {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      font-family: inherit;
+      width: 100%;
+    }
+    .modal-time-select select:focus { outline: none; border-color: var(--primary); }
+
     /* ── TIME ROW ────────────────────────────────── */
     .time-row {
       display: grid;
@@ -614,11 +659,15 @@
       <div class="add-form-title">Nouvelle séquence</div>
 
       <div class="form-group">
-        <label class="form-label">Horaires</label>
-        <div class="time-row">
-          <input type="time" id="f-start" class="form-control" step="300">
-          <div class="time-arrow">→</div>
-          <input type="time" id="f-end"   class="form-control" step="300">
+        <label class="form-label">Début</label>
+        <div class="time-select">
+          <select id="f-start-h" class="form-control" style="text-align:center;font-weight:700;padding:14px 8px"></select>
+          <select id="f-start-m" class="form-control" style="text-align:center;font-weight:700;padding:14px 8px"></select>
+        </div>
+        <label class="form-label" style="margin-top:10px">Fin</label>
+        <div class="time-select">
+          <select id="f-end-h" class="form-control" style="text-align:center;font-weight:700;padding:14px 8px"></select>
+          <select id="f-end-m" class="form-control" style="text-align:center;font-weight:700;padding:14px 8px"></select>
         </div>
       </div>
 
@@ -661,10 +710,14 @@
     <div class="section-title mt-6">Pause déjeuner</div>
     <div class="lunch-card">
       <span class="lunch-label">Pause</span>
-      <div class="time-row" style="flex:1">
-        <input type="time" id="lunch-start" class="form-control" step="300" oninput="onLunchChange()">
-        <div class="time-arrow">→</div>
-        <input type="time" id="lunch-end" class="form-control" step="300" oninput="onLunchChange()">
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <select id="lunch-start-h" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
+        <select id="lunch-start-m" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
+      </div>
+      <div class="time-arrow" style="margin:0 4px">→</div>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        <select id="lunch-end-h" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
+        <select id="lunch-end-m" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
       </div>
     </div>
 
@@ -771,7 +824,41 @@ const DAYS   = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi
 const MONTHS = ['janvier','février','mars','avril','mai','juin',
                 'juillet','août','septembre','octobre','novembre','décembre'];
 
-function is5min(hhmm) { return parseInt(hhmm.substring(3, 5)) % 5 === 0; }
+// ── Sélecteurs heure/minute ───────────────────────
+const HOURS_OPTS = Array.from({length:24},(_,i)=>i);
+const MINS_OPTS  = [0,5,10,15,20,25,30,35,40,45,50,55];
+function timeSelectHTML(idPrefix, val, cssClass) {
+  const [hv, mv] = val ? val.substring(0,5).split(':').map(Number) : [null, null];
+  const hOpts = HOURS_OPTS.map(h =>
+    `<option value="${p2(h)}" ${hv===h?'selected':''}>${p2(h)}h</option>`).join('');
+  const mOpts = MINS_OPTS.map(m =>
+    `<option value="${p2(m)}" ${mv===m?'selected':''}>${p2(m)}</option>`).join('');
+  return `<div class="${cssClass}">
+    <select id="${idPrefix}-h" aria-label="Heure">${hOpts}</select>
+    <select id="${idPrefix}-m" aria-label="Minutes">${mOpts}</select>
+  </div>`;
+}
+function getTime(idPrefix) {
+  const h = document.getElementById(idPrefix+'-h')?.value;
+  const m = document.getElementById(idPrefix+'-m')?.value;
+  return (h != null && m != null) ? `${h}:${m}` : '';
+}
+function setTime(idPrefix, hhmm) {
+  if (!hhmm) return;
+  const [h, m] = hhmm.substring(0,5).split(':');
+  const mRound  = p2(Math.round(Number(m)/5)*5 % 60);
+  const selH = document.getElementById(idPrefix+'-h');
+  const selM = document.getElementById(idPrefix+'-m');
+  if (selH) selH.value = h;
+  if (selM) selM.value = mRound;
+}
+function buildTimeSelect(idPrefix) {
+  const selH = document.getElementById(idPrefix+'-h');
+  const selM = document.getElementById(idPrefix+'-m');
+  if (!selH || !selM) return;
+  selH.innerHTML = HOURS_OPTS.map(h => `<option value="${p2(h)}">${p2(h)}h</option>`).join('');
+  selM.innerHTML = MINS_OPTS.map(m  => `<option value="${p2(m)}">${p2(m)}</option>`).join('');
+}
 
 function todayISO() {
   const d = new Date();
@@ -814,8 +901,8 @@ function toast(msg, dur=2500) {
   setTimeout(()=>el.classList.remove('show'), dur);
 }
 function lunchMinutes() {
-  const ls = document.getElementById('lunch-start').value;
-  const le = document.getElementById('lunch-end').value;
+  const ls = getTime('lunch-start');
+  const le = getTime('lunch-end');
   if (!ls || !le) return 0;
   const m = minutes(ls, le);
   return m > 0 ? m : 0;
@@ -905,10 +992,12 @@ function renderAll() {
     `${S.employee.first_name} ${S.employee.last_name}`;
   document.getElementById('h-date').textContent = fmtDateLong(todayISO());
 
-  if (S.dayEntry?.lunch_start)
-    document.getElementById('lunch-start').value = fmtTime(S.dayEntry.lunch_start);
-  if (S.dayEntry?.lunch_end)
-    document.getElementById('lunch-end').value   = fmtTime(S.dayEntry.lunch_end);
+  buildTimeSelect('f-start');
+  buildTimeSelect('f-end');
+  buildTimeSelect('lunch-start');
+  buildTimeSelect('lunch-end');
+  if (S.dayEntry?.lunch_start) setTime('lunch-start', fmtTime(S.dayEntry.lunch_start));
+  if (S.dayEntry?.lunch_end)   setTime('lunch-end',   fmtTime(S.dayEntry.lunch_end));
 
   buildActivitySelect();
   buildParcelSelect();
@@ -1046,9 +1135,9 @@ function showForm() {
   document.getElementById('other-group').classList.add('hidden');
   // Pre-fill start time from last sequence end
   const last = S.sequences.at(-1);
-  document.getElementById('f-start').value = last ? fmtTime(last.end_time) : '08:00';
-  document.getElementById('f-end').value   = '';
-  document.getElementById('f-start').focus();
+  setTime('f-start', last ? fmtTime(last.end_time) : '08:00');
+  setTime('f-end', '');
+  document.getElementById('f-start-h').focus();
 }
 
 function cancelAdd() {
@@ -1062,8 +1151,8 @@ document.getElementById('f-activity').addEventListener('change', function() {
 });
 
 async function submitSeq() {
-  const start = round5(document.getElementById('f-start').value);
-  const end   = round5(document.getElementById('f-end').value);
+  const start = getTime('f-start');
+  const end   = getTime('f-end');
   const actId = document.getElementById('f-activity').value;
   const parId = document.getElementById('f-parcel').value || null;
   const com   = document.getElementById('f-comment').value.trim() || null;
@@ -1118,8 +1207,8 @@ async function onLunchChange() {
   clearTimeout(lunchTimer);
   lunchTimer = setTimeout(async () => {
     if (!S.dayEntry) return;
-    const ls = document.getElementById('lunch-start').value || null;
-    const le = document.getElementById('lunch-end').value   || null;
+    const ls = getTime('lunch-start') || null;
+    const le = getTime('lunch-end')   || null;
     await db.from('day_entries').update({
       lunch_start: ls ? ls + ':00' : null,
       lunch_end:   le ? le + ':00' : null
@@ -1249,11 +1338,8 @@ function editHistSeq(seqId, entryId) {
 
   document.getElementById('modal-title').textContent = 'Modifier la séquence';
   document.getElementById('modal-body').innerHTML = `
-    <div class="modal-time-row">
-      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.start_time)}" step="300">
-      <span>→</span>
-      <input type="time" id="m-end"   class="modal-input" style="margin:0;padding:12px 8px" value="${fmtTime(seq.end_time)}"   step="300">
-    </div>
+    ${timeSelectHTML('m-start', fmtTime(seq.start_time), 'modal-time-select')}
+    ${timeSelectHTML('m-end',   fmtTime(seq.end_time),   'modal-time-select')}
     <select id="m-act" class="modal-input">
       ${S.activities.map(a=>`<option value="${a.id}" ${a.id==seq.activity_id?'selected':''}>${a.name}</option>`).join('')}
     </select>
@@ -1272,14 +1358,13 @@ function editHistSeq(seqId, entryId) {
 }
 
 async function saveHistSeq(seqId) {
-  const start = document.getElementById('m-start').value + ':00';
-  const end   = document.getElementById('m-end').value   + ':00';
+  const start = getTime('m-start') + ':00';
+  const end   = getTime('m-end')   + ':00';
   const actId = document.getElementById('m-act').value;
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
 
-  if (minutes(start, end) <= 0)               { toast('⚠️ Fin doit être après début'); return; }
-  if (!is5min(start) || !is5min(end))         { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
 
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
@@ -1359,11 +1444,8 @@ function addCalSeq(entryId, workDate)  { openAddSeqModal(entryId || null, workDa
 function openAddSeqModal(entryId, workDate, isCalEntry) {
   document.getElementById('modal-title').textContent = 'Ajouter · ' + fmtDateLong(workDate);
   document.getElementById('modal-body').innerHTML = `
-    <div class="modal-time-row">
-      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="08:00" step="300">
-      <span>→</span>
-      <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" step="300">
-    </div>
+    ${timeSelectHTML('m-start', '08:00', 'modal-time-select')}
+    ${timeSelectHTML('m-end',   '',      'modal-time-select')}
     <select id="m-act" class="modal-input">
       <option value="">— Activité —</option>
       ${S.activities.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
@@ -1382,16 +1464,14 @@ function openAddSeqModal(entryId, workDate, isCalEntry) {
 }
 
 async function saveNewHistSeq(entryId, workDate, isCalEntry) {
-  const start = document.getElementById('m-start').value;
-  const end   = document.getElementById('m-end').value;
+  const start = getTime('m-start');
+  const end   = getTime('m-end');
   const actId = document.getElementById('m-act').value;
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
 
-  if (!start || !end)                          { toast('⚠️ Renseignez début et fin');   return; }
-  if (!actId)                                  { toast('⚠️ Choisissez une activité');   return; }
-  if (minutes(start+':00', end+':00') <= 0)    { toast('⚠️ Fin doit être après début'); return; }
-  if (!is5min(start) || !is5min(end))          { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
+  if (!actId)                               { toast('⚠️ Choisissez une activité');   return; }
+  if (minutes(start+':00', end+':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
 
   let dayEntryId = entryId || null;
   if (!dayEntryId) {
@@ -1539,11 +1619,8 @@ function editCalSeq(seqId, workDate) {
   if (!seq) return;
   document.getElementById('modal-title').textContent = 'Modifier · ' + fmtDateLong(workDate);
   document.getElementById('modal-body').innerHTML = `
-    <div class="modal-time-row">
-      <input type="time" id="m-start" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.start_time)}" step="300">
-      <span>→</span>
-      <input type="time" id="m-end" class="modal-input" style="margin:0;padding:11px 8px" value="${fmtTime(seq.end_time)}" step="300">
-    </div>
+    ${timeSelectHTML('m-start', fmtTime(seq.start_time), 'modal-time-select')}
+    ${timeSelectHTML('m-end',   fmtTime(seq.end_time),   'modal-time-select')}
     <select id="m-act" class="modal-input">
       ${S.activities.map(a => `<option value="${a.id}" ${a.id == seq.activity_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
     </select>
@@ -1562,13 +1639,12 @@ function editCalSeq(seqId, workDate) {
 }
 
 async function saveCalSeq(seqId, workDate) {
-  const start = document.getElementById('m-start').value + ':00';
-  const end   = document.getElementById('m-end').value   + ':00';
+  const start = getTime('m-start') + ':00';
+  const end   = getTime('m-end')   + ':00';
   const actId = document.getElementById('m-act').value;
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
-  if (minutes(start, end) <= 0)       { toast('⚠️ Fin doit être après début'); return; }
-  if (!is5min(start) || !is5min(end)) { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
   }).eq('id', seqId);
