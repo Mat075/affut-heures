@@ -1070,11 +1070,6 @@
     //             utilisé aussi pour les écritures admin (employees, parcelles)
     const authClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // db : requêtes données uniquement, sans session (les politiques RLS anon restent valides)
-    //      utilisé pour les lectures et les opérations côté salarié
-    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-    });
 
     // URL de base pour les liens salariés (ex: https://mat075.github.io/affut-heures/)
     const BASE_URL = 'https://admin.laffut-vins.com';
@@ -1215,9 +1210,9 @@
     async function initAdmin() {
       // Load reference data
       const [{ data: emps }, { data: acts }, { data: pars }] = await Promise.all([
-        db.from('employees').select('*').order('last_name'),
-        db.from('activities').select('*').order('order_index'),
-        db.from('parcels').select('*').order('lieu_dit').order('cvi_number')
+        authClient.from('employees').select('*').order('last_name'),
+        authClient.from('activities').select('*').order('order_index'),
+        authClient.from('parcels').select('*').order('lieu_dit').order('cvi_number')
       ]);
       A.employees = emps || [];
       A.activities = acts || [];
@@ -1272,7 +1267,7 @@
       const monday = mondayISO();
 
       // Today's entries
-      const { data: todayEntries } = await db.from('day_entries')
+      const { data: todayEntries } = await authClient.from('day_entries')
         .select('*, employees(first_name, last_name), work_sequences(*)')
         .eq('work_date', today);
 
@@ -1282,7 +1277,7 @@
         todayData.filter(e => e.is_complete).length + ' validée(s)';
 
       // Week entries
-      const { data: weekEntries } = await db.from('day_entries')
+      const { data: weekEntries } = await authClient.from('day_entries')
         .select('*, work_sequences(*)')
         .gte('work_date', monday).lte('work_date', today).eq('is_complete', true);
 
@@ -1334,7 +1329,7 @@
       const empId = document.getElementById('f-emp').value;
       const actId = document.getElementById('f-act').value;
 
-      let q = db.from('work_sequences')
+      let q = authClient.from('work_sequences')
         .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete, employee_id,
              employees(id, first_name, last_name))`)
         .order('day_entries(work_date)', { ascending: false })
@@ -1446,11 +1441,8 @@
     }
 
     async function toggleActivity(id, isActive) {
-      const session = await authClient.auth.getSession();
-      console.log('session user:', session?.data?.session?.user?.email, '| id:', id, '| isActive:', isActive);
       const { error } = await authClient.from('activities').update({ is_active: !isActive }).eq('id', id);
-      console.log('update error:', error);
-      if (error) { console.error('toggleActivity', error); toast('❌ Erreur : ' + error.message); return; }
+      if (error) { toast('❌ Erreur : ' + error.message); return; }
       const a = A.activities.find(a => a.id == id);
       if (a) a.is_active = !isActive;
       renderActivities();
@@ -1623,7 +1615,7 @@
 
     async function toggleParcel(id, isActive) {
       const { error } = await authClient.from('parcels').update({ is_active: !isActive }).eq('id', id);
-      if (error) { console.error('toggleParcel', error); toast('❌ Erreur : ' + error.message); return; }
+      if (error) { toast('❌ Erreur : ' + error.message); return; }
       const p = A.parcels.find(p => p.id == id);
       if (p) p.is_active = !isActive;
       renderParcels();
@@ -1636,7 +1628,7 @@
       const dateStart = document.getElementById('f-date-start').value || mondayISO();
       const dateEnd = document.getElementById('f-date-end').value || todayISO();
 
-      const { data } = await db.from('work_sequences')
+      const { data } = await authClient.from('work_sequences')
         .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete, created_at, updated_at,
              employees(first_name, last_name))`)
         .gte('day_entries.work_date', dateStart)
