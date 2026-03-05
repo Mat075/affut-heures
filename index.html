@@ -571,6 +571,8 @@
     .cal-day.today    { background: var(--primary); color: white; font-weight: 800; }
     .cal-day.selected { background: var(--accent);  color: white; font-weight: 700; }
     .cal-day.future   { color: #D8D0C8; pointer-events: none; }
+    .cal-day.has-seqs { background: #dcfce7; color: #15803d; font-weight: 700; }
+    .cal-day.done     { background: #fce7f3; color: var(--accent); font-weight: 700; }
     .cal-day:not(.future):not(.today):not(.selected):hover { background: #EEF0F8; }
     .cal-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .cal-result-date { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-transform: capitalize; }
@@ -1344,6 +1346,7 @@ async function finishHistDay(entryId, btn) {
     .update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', entryId);
   if (error) { toast('❌ Erreur'); return; }
   entry.is_complete = true;
+  if (CAL.days) CAL.days[entry.work_date] = 'done';
   // Mettre à jour le header : remplacer la durée par durée + ✓
   const histItem = btn.closest('.hist-item');
   const totalEl = histItem.querySelector('.hist-total');
@@ -1428,14 +1431,25 @@ async function saveNewHistSeq(entryId, workDate, isCalEntry) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CALENDAR DATE PICKER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const CAL = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+const CAL = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null, days: {} };
 
-function toggleCalendar() {
+async function toggleCalendar() {
   const panel = document.getElementById('cal-panel');
   const btn   = document.getElementById('cal-toggle-btn');
   const nowHidden = panel.classList.toggle('hidden');
   btn.classList.toggle('open', !nowHidden);
-  if (!nowHidden) renderCal();
+  if (!nowHidden) {
+    // Charger tous les day_entries du salarié pour colorier le calendrier
+    const { data } = await db.from('day_entries')
+      .select('work_date, is_complete, work_sequences(id)')
+      .eq('employee_id', S.employee.id);
+    CAL.days = {};
+    (data || []).forEach(e => {
+      const hasSecs = (e.work_sequences || []).length > 0;
+      CAL.days[e.work_date] = e.is_complete ? 'done' : hasSecs ? 'has-seqs' : null;
+    });
+    renderCal();
+  }
 }
 
 function renderCal() {
@@ -1460,7 +1474,10 @@ function renderCal() {
     if      (iso > today)                 el.classList.add('future');
     else if (iso === CAL.selectedDate)    el.classList.add('selected');
     else if (iso === today)               el.classList.add('today');
-    else                                  el.onclick = () => calSelectDate(iso);
+    else {
+      if (CAL.days[iso]) el.classList.add(CAL.days[iso]);
+      el.onclick = () => calSelectDate(iso);
+    }
     grid.appendChild(el);
   }
 }
