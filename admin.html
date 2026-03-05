@@ -977,49 +977,25 @@
         </div>
 
         <!-- ─── SÉQUENCES ─────────────────────────── -->
-        <div class="panel" id="panel-sequences">
-          <div class="panel-title">Gestion des séquences</div>
-
-          <div style="margin-bottom:18px;">
-            <button class="btn btn-primary" onclick="openAddSeqAdmin()">+ Ajouter une séquence</button>
+        <div class="panel parcel-table" id="panel-sequences">
+          <div class="panel-title">Gestion des activités</div>
+          <div class="flex-end" style="margin-bottom:14px;">
+            <button class="btn btn-primary" onclick="openAddActivity()">+ Ajouter une activité</button>
           </div>
-
-          <div class="filters">
-            <div class="filter-group">
-              <div class="filter-label">Salarié</div>
-              <select id="sm-emp" class="filter-control" onchange="loadSeqManage()">
-                <option value="">Tous</option>
-              </select>
-            </div>
-            <div class="filter-group">
-              <div class="filter-label">Date début</div>
-              <input type="date" id="sm-date-start" class="filter-control" oninput="loadSeqManage()">
-            </div>
-            <div class="filter-group">
-              <div class="filter-label">Date fin</div>
-              <input type="date" id="sm-date-end" class="filter-control" oninput="loadSeqManage()">
-            </div>
-          </div>
-
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Salarié</th>
-                  <th>Horaire</th>
-                  <th>Durée</th>
-                  <th>Activité</th>
-                  <th>Commentaire</th>
-                  <th></th>
+                  <th>Nom</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="sm-tbody">
-                <tr><td colspan="7" class="loading-table">Chargement…</td></tr>
+              <tbody id="activities-tbody">
+                <tr><td colspan="3" class="loading-table">Chargement…</td></tr>
               </tbody>
             </table>
           </div>
-          <div id="sm-count" style="font-size:13px;color:var(--text-muted);margin-top:10px;text-align:right;"></div>
         </div>
 
         <!-- ─── PARCELLES ─────────────────────────── -->
@@ -1251,21 +1227,13 @@
       document.getElementById('f-date-start').value = mondayISO();
       document.getElementById('f-date-end').value = todayISO();
 
-      // Fill employee filters (saisies + sequences panels)
-      const empSel   = document.getElementById('f-emp');
-      const empSelSm = document.getElementById('sm-emp');
+      // Fill employee filter (saisies panel)
+      const empSel = document.getElementById('f-emp');
       A.employees.forEach(e => {
-        const label = `${e.first_name} ${e.last_name}`;
-        [empSel, empSelSm].forEach(sel => {
-          const o = document.createElement('option');
-          o.value = e.id; o.textContent = label;
-          sel.appendChild(o);
-        });
+        const o = document.createElement('option');
+        o.value = e.id; o.textContent = `${e.first_name} ${e.last_name}`;
+        empSel.appendChild(o);
       });
-
-      // Default dates for sequences panel (this week)
-      document.getElementById('sm-date-start').value = mondayISO();
-      document.getElementById('sm-date-end').value   = todayISO();
 
       // Fill activity filter
       const actSel = document.getElementById('f-act');
@@ -1289,12 +1257,11 @@
       document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.classList.remove('active'));
       document.getElementById('panel-' + id).classList.add('active');
       document.querySelectorAll(`[data-panel="${id}"]`).forEach(el => el.classList.add('active'));
-      if (id === 'sequences') loadSeqManage();
+      if (id === 'sequences') renderActivities();
     }
 
     function refreshCurrent() {
-      if (document.getElementById('panel-sequences').classList.contains('active')) loadSeqManage();
-      else loadSaisies();
+      loadSaisies();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1431,191 +1398,58 @@
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // EDIT SEQUENCE (modal)
+    // ACTIVITIES
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    function editSeq(id) {
-      const seq = A.allSeqs.find(s => s.id === id);
-      if (!seq) return;
-      const act = A.activities.find(a => a.id == seq.activity_id);
-
-      document.getElementById('modal-title').textContent = 'Modifier la séquence';
-      document.getElementById('modal-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px;">
-      <input type="time" id="m-start" class="modal-input" style="margin:0" value="${fmtTime(seq.start_time)}" step="300">
-      <span style="text-align:center;color:var(--text-muted)">→</span>
-      <input type="time" id="m-end"   class="modal-input" style="margin:0" value="${fmtTime(seq.end_time)}"   step="300">
-    </div>
-    <select id="m-act" class="modal-input">
-      ${A.activities.map(a => `<option value="${a.id}" ${a.id == seq.activity_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
-    </select>
-    <select id="m-par" class="modal-input">
-      <option value="">— Aucune —</option>
-      ${A.parcels.map(p => `<option value="${p.id}" ${p.id == seq.parcel_id ? 'selected' : ''}>${esc(p.cvi_number)} — ${esc(p.cepage)} (${esc(p.lieu_dit)})</option>`).join('')}
-    </select>
-    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire" value="${esc(seq.comment || '')}">
-  `;
-      document.getElementById('modal-actions').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-    <button class="btn btn-danger btn-sm" onclick="deleteSeqAdmin('${id}')">Supprimer</button>
-    <button class="btn btn-primary" onclick="saveSeqAdmin('${id}')">Enregistrer</button>
-  `;
-      document.getElementById('modal').classList.remove('hidden');
-    }
-
-    function is5min(hhmm) { return parseInt(hhmm.substring(3, 5)) % 5 === 0; }
-
-    async function saveSeqAdmin(id) {
-      const start = document.getElementById('m-start').value + ':00';
-      const end = document.getElementById('m-end').value + ':00';
-      const actId = document.getElementById('m-act').value;
-      const parId = document.getElementById('m-par').value || null;
-      const com = document.getElementById('m-com').value.trim() || null;
-
-      if (calcMin(start, end) <= 0)     { toast('⚠️ Fin doit être après début'); return; }
-      if (!is5min(start) || !is5min(end)) { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
-
-      const { error } = await db.from('work_sequences').update({
-        start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
-      }).eq('id', id);
-
-      if (error) { toast('❌ Erreur'); return; }
-      closeModal();
-      toast('✓ Modification enregistrée');
-      refreshCurrent();
-    }
-
-    function openAddSeqAdmin() {
-      const today = todayISO();
-      document.getElementById('modal-title').textContent = 'Ajouter une séquence';
-      document.getElementById('modal-body').innerHTML = `
-    <select id="m-emp" class="modal-input">
-      <option value="">— Choisir un salarié —</option>
-      ${A.employees.filter(e => e.is_active).map(e => `<option value="${e.id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('')}
-    </select>
-    <input type="date" id="m-date" class="modal-input" max="${today}" value="${today}">
-    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px;">
-      <input type="time" id="m-start" class="modal-input" style="margin:0" step="300">
-      <span style="text-align:center;color:var(--text-muted)">→</span>
-      <input type="time" id="m-end"   class="modal-input" style="margin:0" step="300">
-    </div>
-    <select id="m-act" class="modal-input">
-      <option value="">— Activité —</option>
-      ${A.activities.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
-    </select>
-    <select id="m-par" class="modal-input">
-      <option value="">— Aucune parcelle —</option>
-      ${A.parcels.map(p => `<option value="${p.id}">${esc(p.cvi_number)} — ${esc(p.cepage)} (${esc(p.lieu_dit)})</option>`).join('')}
-    </select>
-    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire (optionnel)">
-  `;
-      document.getElementById('modal-actions').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
-    <button class="btn btn-primary" onclick="saveAddSeqAdmin()">Ajouter</button>
-  `;
-      document.getElementById('modal').classList.remove('hidden');
-    }
-
-    async function saveAddSeqAdmin() {
-      const empId = document.getElementById('m-emp').value;
-      const date  = document.getElementById('m-date').value;
-      const start = document.getElementById('m-start').value;
-      const end   = document.getElementById('m-end').value;
-      const actId = document.getElementById('m-act').value;
-      const parId = document.getElementById('m-par').value || null;
-      const com   = document.getElementById('m-com').value.trim() || null;
-
-      if (!empId)                               { toast('⚠️ Choisissez un salarié');   return; }
-      if (!date)                                { toast('⚠️ Choisissez une date');      return; }
-      if (!start || !end)                       { toast('⚠️ Renseignez début et fin');  return; }
-      if (!actId)                               { toast('⚠️ Choisissez une activité'); return; }
-      if (calcMin(start + ':00', end + ':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
-      if (!is5min(start) || !is5min(end))       { toast('⚠️ Utilisez des tranches de 5 min (ex : 08h00, 08h05)'); return; }
-
-      // Trouver ou créer le day_entry
-      let { data: entry } = await db.from('day_entries')
-        .select('id')
-        .eq('employee_id', empId)
-        .eq('work_date', date)
-        .maybeSingle();
-
-      if (!entry) {
-        const { data: newEntry, error: ee } = await db.from('day_entries')
-          .insert({ employee_id: empId, work_date: date })
-          .select()
-          .single();
-        if (ee) { console.error(ee); toast('❌ Erreur lors de la création de la journée'); return; }
-        entry = newEntry;
-      }
-
-      const { error } = await db.from('work_sequences').insert({
-        day_entry_id: entry.id,
-        start_time:   start + ':00',
-        end_time:     end   + ':00',
-        activity_id:  actId,
-        parcel_id:    parId,
-        comment:      com
-      });
-
-      if (error) { console.error(error); toast('❌ Erreur lors de l\'enregistrement'); return; }
-      closeModal();
-      toast('✓ Séquence ajoutée');
-      refreshCurrent();
-    }
-
-    async function loadSeqManage() {
-      const tbody = document.getElementById('sm-tbody');
-      tbody.innerHTML = '<tr><td colspan="7" class="loading-table">Chargement…</td></tr>';
-      const empId     = document.getElementById('sm-emp').value;
-      const dateStart = document.getElementById('sm-date-start').value;
-      const dateEnd   = document.getElementById('sm-date-end').value;
-
-      let q = db.from('work_sequences')
-        .select('*, day_entries!inner(work_date, employee_id, employees(first_name, last_name))')
-        .order('day_entries(work_date)', { ascending: false })
-        .order('start_time');
-      if (dateStart) q = q.gte('day_entries.work_date', dateStart);
-      if (dateEnd)   q = q.lte('day_entries.work_date', dateEnd);
-      if (empId)     q = q.eq('day_entries.employee_id', empId);
-
-      const { data, error } = await q;
-      if (error) { console.error(error); tbody.innerHTML = '<tr><td colspan="7" class="empty-table">Erreur</td></tr>'; return; }
-      A.allSeqs = data || [];
-      renderSeqManage(A.allSeqs);
-    }
-
-    function renderSeqManage(rows) {
-      const tbody = document.getElementById('sm-tbody');
-      document.getElementById('sm-count').textContent = rows.length ? `${rows.length} séquence(s)` : '';
-      if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-table">Aucune séquence pour cette période</td></tr>';
-        return;
-      }
+    function renderActivities() {
+      const tbody = document.getElementById('activities-tbody');
       tbody.innerHTML = '';
-      rows.forEach(seq => {
-        const entry   = seq.day_entries;
-        const emp     = entry?.employees;
-        const act     = A.activities.find(a => a.id == seq.activity_id);
-        const actName = (act?.is_other && seq.other_activity_label) ? seq.other_activity_label : act?.name || '?';
+      A.activities.forEach(a => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td style="white-space:nowrap">${fmtDate(entry?.work_date)}</td>
-          <td>${esc(emp?.first_name || '')} ${esc(emp?.last_name || '')}</td>
-          <td class="td-time">${fmtTime(seq.start_time)} → ${fmtTime(seq.end_time)}</td>
-          <td class="td-dur">${fmtDur(calcMin(seq.start_time, seq.end_time))}</td>
-          <td>${esc(actName)}</td>
-          <td>${esc(seq.comment || '—')}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="editSeq('${seq.id}')">✏️</button></td>
-        `;
+      <td>${esc(a.name)}</td>
+      <td><span class="badge ${a.is_active !== false ? 'badge-done' : 'badge-draft'}">${a.is_active !== false ? 'Oui' : 'Non'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="toggleActivity('${a.id}',${a.is_active !== false})">
+          ${a.is_active !== false ? 'Désactiver' : 'Réactiver'}
+        </button>
+      </td>
+    `;
         tbody.appendChild(tr);
       });
     }
 
-    async function deleteSeqAdmin(id) {
-      if (!confirm('Supprimer définitivement cette séquence ?')) return;
-      await db.from('work_sequences').delete().eq('id', id);
+    function openAddActivity() {
+      document.getElementById('modal-title').textContent = 'Ajouter une activité';
+      document.getElementById('modal-body').innerHTML = `
+    <input type="text" id="a-name" class="modal-input" placeholder="Nom de l'activité">
+  `;
+      document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary" onclick="addActivity()">Ajouter</button>
+  `;
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    async function addActivity() {
+      const name = document.getElementById('a-name').value.trim();
+      if (!name) { toast('⚠️ Nom requis'); return; }
+
+      const { data, error } = await db.from('activities')
+        .insert({ name, order_index: A.activities.length })
+        .select().single();
+
+      if (error) { toast(error.code === '23505' ? '❌ Cette activité existe déjà' : '❌ Erreur'); return; }
+      A.activities.push(data);
       closeModal();
-      toast('Séquence supprimée');
-      refreshCurrent();
+      renderActivities();
+      toast(`✓ Activité "${name}" ajoutée`);
+    }
+
+    async function toggleActivity(id, isActive) {
+      await db.from('activities').update({ is_active: !isActive }).eq('id', id);
+      const a = A.activities.find(a => a.id == id);
+      if (a) a.is_active = !isActive;
+      renderActivities();
     }
 
     function closeModal() { document.getElementById('modal').classList.add('hidden'); }
