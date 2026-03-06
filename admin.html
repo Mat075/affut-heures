@@ -28,6 +28,20 @@
       --shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
     }
 
+    [data-theme="dark"] {
+      --bg: #111318;
+      --surface: #1C1F2B;
+      --primary: #E0004D;
+      --primary-lt: #B8003F;
+      --accent: #6B9FFF;
+      --text: #E8E3DD;
+      --text-muted: #7A8099;
+      --border: #2A2E40;
+      --success: #3A9065;
+      --danger: #D44545;
+      --shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -761,6 +775,40 @@
       /* Toast au-dessus de la nav */
       .toast { bottom: 76px; }
     }
+
+    /* ── DARK MODE TOGGLE ────────────────────────── */
+    .dark-toggle {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      border-radius: 20px;
+      padding: 6px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      line-height: 1;
+      color: white;
+      transition: background 0.2s;
+      min-height: 36px;
+    }
+    .dark-toggle:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── DARK MODE SURCHARGES HARDCODÉES ─────────── */
+    [data-theme="dark"] .nav-item.active { background: #1A1D2A; }
+    [data-theme="dark"] .nav-item:hover  { background: #151820; }
+    [data-theme="dark"] thead th         { background: #171A26; }
+    [data-theme="dark"] tbody tr         { border-bottom-color: #242738; }
+    [data-theme="dark"] tbody tr:hover   { background: #1E2135; }
+    [data-theme="dark"] .badge-done  { background: #0D2E1A; color: #5FBF8A; }
+    [data-theme="dark"] .badge-draft { background: #2A2200; color: #C8A840; }
+    [data-theme="dark"] .bal-pos  { color: #5FBF8A; }
+    [data-theme="dark"] .bal-neg  { color: #E07070; }
+    [data-theme="dark"] .bal-zero { color: var(--text-muted); }
+    [data-theme="dark"] .login-box { box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    [data-theme="dark"] .toast { background: #E8E3DDEE; color: #111318; }
+    [data-theme="dark"] #eom-alert {
+      background: #2A2200 !important;
+      border-color: #B8820A !important;
+      color: #E8C96A !important;
+    }
   </style>
 </head>
 
@@ -926,6 +974,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
         <div class="header-sub">Isabelle</div>
       </div></div>
       <div class="header-btns">
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDark()" aria-label="Mode sombre"></button>
         <button class="btn btn-accent" onclick="exportExcel()">⬇ <span class="btn-label">Export Excel</span></button>
         <button class="btn btn-ghost" onclick="openChangePwd()">🔑 <span class="btn-label">Mot de passe</span></button>
         <button class="btn btn-ghost" onclick="doLogout()">🚪 <span class="btn-label">Déconnexion</span></button>
@@ -2068,6 +2117,19 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     document.getElementById('modal').addEventListener('click', function (e) {
       if (e.target === this) closeModal();
     });
+
+    // ── DARK MODE ──────────────────────────────────
+    function applyDark(dark) {
+      document.documentElement.dataset.theme = dark ? 'dark' : '';
+      const btn = document.getElementById('dark-toggle-btn');
+      if (btn) btn.textContent = dark ? '☀️' : '🌙';
+    }
+    function toggleDark() {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      localStorage.setItem('affut-theme', isDark ? 'light' : 'dark');
+      applyDark(!isDark);
+    }
+    applyDark(localStorage.getItem('affut-theme') === 'dark');
   </script>
 </body>
 

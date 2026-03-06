@@ -27,6 +27,20 @@
       --shadow:       0 2px 10px rgba(0,0,0,0.07);
     }
 
+    [data-theme="dark"] {
+      --bg:           #111318;
+      --surface:      #1C1F2B;
+      --primary:      #4F80FF;
+      --primary-dk:   #3560CC;
+      --accent:       #E0004D;
+      --text:         #E8E3DD;
+      --text-muted:   #7A8099;
+      --border:       #2A2E40;
+      --success:      #3A9065;
+      --danger:       #D44545;
+      --shadow:       0 2px 12px rgba(0,0,0,0.35);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     body {
@@ -645,6 +659,57 @@
     .cal-day:not(.future):not(.today):not(.selected):hover { background: #EEF0F8; }
     .cal-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .cal-result-date { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-transform: capitalize; }
+
+    /* ── DARK MODE TOGGLE ────────────────────────── */
+    .dark-toggle {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.15);
+      border: none;
+      border-radius: 20px;
+      padding: 6px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      line-height: 1;
+      color: white;
+      transition: background 0.2s;
+    }
+    .dark-toggle:active { background: rgba(255,255,255,0.25); }
+
+    /* ── DARK MODE SURCHARGES HARDCODÉES ─────────── */
+    [data-theme="dark"] .seq-duration {
+      background: rgba(255,255,255,0.07);
+      border-color: #3A3F55;
+      color: var(--accent);
+    }
+    [data-theme="dark"] .reminder-banner {
+      background: #2A2200;
+      border-bottom-color: #B8820A;
+      color: #E8C96A;
+    }
+    [data-theme="dark"] .reminder-banner:active { background: #332900; }
+    [data-theme="dark"] .bal-pos  { background: #0D2E1A; color: #5FBF8A; }
+    [data-theme="dark"] .bal-neg  { background: #2E0D0D; color: #E07070; }
+    [data-theme="dark"] .bal-zero { background: #2A2200; color: #C8A840; }
+    [data-theme="dark"] .hist-total.is-done    { color: #5FBF8A; }
+    [data-theme="dark"] .hist-total.is-pending { color: #C8A840; }
+    [data-theme="dark"] .hist-delete-btn {
+      color: #E07070;
+      border-color: #E07070;
+    }
+    [data-theme="dark"] .hist-seq { border-bottom-color: #242738; }
+    [data-theme="dark"] .hist-modified { border-top-color: #242738; }
+    [data-theme="dark"] .hist-add-btn:active { background: rgba(79,128,255,0.08); }
+    [data-theme="dark"] .cal-day.future   { color: #3A3F55; }
+    [data-theme="dark"] .cal-day.has-seqs { background: #2A2200; color: #C8A840; }
+    [data-theme="dark"] .cal-day.done     { background: #0D2E1A; color: #5FBF8A; }
+    [data-theme="dark"] .cal-day:not(.future):not(.today):not(.selected):hover { background: #252840; }
+    [data-theme="dark"] .form-control:focus { background: #242738; }
+    [data-theme="dark"] .time-select select:focus { background: #242738; }
+    [data-theme="dark"] .seq-edited-by.admin { color: #A78BFA; }
+    [data-theme="dark"] .toast { background: #E8E3DDEE; color: #111318; }
   </style>
 </head>
 <body>
@@ -764,6 +829,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     <div class="header-brand">L'AFFÛT</div>
     <div class="header-name" id="h-name"></div>
     <div class="header-date" id="h-date"></div>
+    <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDark()" aria-label="Mode sombre"></button>
   </div>
 
   <div id="reminder-banner" class="reminder-banner hidden" onclick="toggleCalendar()" role="alert"></div>
@@ -1914,6 +1980,21 @@ async function deleteCalSeq(seqId, workDate) {
   await calSelectDate(workDate);
   toast('Séquence supprimée');
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DARK MODE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function applyDark(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : '';
+  const btn = document.getElementById('dark-toggle-btn');
+  if (btn) btn.textContent = dark ? '☀️' : '🌙';
+}
+function toggleDark() {
+  const isDark = document.documentElement.dataset.theme === 'dark';
+  localStorage.setItem('affut-theme', isDark ? 'light' : 'dark');
+  applyDark(!isDark);
+}
+applyDark(localStorage.getItem('affut-theme') === 'dark');
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // START
