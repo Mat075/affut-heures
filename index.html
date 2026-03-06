@@ -142,6 +142,9 @@
     }
     .seq-del:active { color: var(--danger); }
     .seq-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+    .seq-edited-by { display: block; font-size: 11px; font-weight: 500; margin-top: 3px; }
+    .seq-edited-by.admin { color: #7c3aed; }
+    .seq-edited-by.emp   { color: var(--text-muted); }
 
     /* ── REMINDER BANNER ─────────────────────────── */
     .reminder-banner {
@@ -1200,11 +1203,11 @@ function renderSeqs() {
           <div class="seq-duration">⏱ ${fmtDur(dur)}</div>
         </div>
         <div class="seq-actions">
-          ${!done ? `<button class="hist-edit-btn" title="Modifier" data-edit="${seq.id}">✏️</button>` : ''}
-          <button class="seq-del" title="Supprimer" ${done?'disabled':''} data-id="${seq.id}">×</button>
+          ${seq.admin_locked ? `<span title="Verrouillé par Isabelle" style="font-size:16px;opacity:0.5;cursor:default">🔒</span>` : `<button class="hist-edit-btn" title="Modifier" data-edit="${seq.id}">✏️</button>`}
+          <button class="seq-del" title="Supprimer" ${(done||seq.admin_locked)?'disabled':''} data-id="${seq.id}">×</button>
         </div>
       `;
-      if (!done) card.querySelector(`[data-edit="${seq.id}"]`).onclick = () => editTodaySeq(seq.id);
+      if (!seq.admin_locked) card.querySelector(`[data-edit="${seq.id}"]`).onclick = () => editTodaySeq(seq.id);
       card.querySelector('.seq-del').onclick = () => deleteSeq(seq.id);
       list.appendChild(card);
     });
@@ -1239,15 +1242,24 @@ function renderHistory() {
           const act = S.activities.find(a=>a.id==s.activity_id);
           const par = s.parcel_id ? S.parcels.find(p=>p.id==s.parcel_id) : null;
           const nm  = (act?.is_other && s.other_activity_label) ? s.other_activity_label : act?.name||'?';
+          const editedLabel = s.last_edited_by === 'admin'
+            ? `<span class="seq-edited-by admin">✏️ Modifié par Isabelle · ${fmtDateTime(s.last_edited_at)}</span>`
+            : s.last_edited_by === 'employee'
+            ? `<span class="seq-edited-by emp">✏️ Modifié par vous · ${fmtDateTime(s.last_edited_at)}</span>`
+            : '';
           return `<div class="hist-seq">
-            <span>${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${esc(nm)}${par?` · ${esc(par.cvi_number)}`:''}</span>
-            <button class="hist-edit-btn" onclick="editHistSeq('${s.id}','${entry.id}')">✏️</button>
+            <div style="flex:1">
+              <span>${fmtTime(s.start_time)}→${fmtTime(s.end_time)} · ${esc(nm)}${par?` · ${esc(par.cvi_number)}`:''}</span>
+              ${editedLabel}
+            </div>
+            ${s.admin_locked
+              ? `<span title="Verrouillé par Isabelle" style="font-size:14px;opacity:0.5">🔒</span>`
+              : `<button class="hist-edit-btn" onclick="editHistSeq('${s.id}','${entry.id}')">✏️</button>`}
           </div>`;
         }).join('')}
         ${entry.completed_at ? `<div style="font-size:11px;color:var(--text-muted);padding-top:6px;margin-top:2px;border-top:1px solid #F5F0EA;">
           ✓ Validé le ${fmtDateTime(entry.completed_at)}
         </div>` : ''}
-        ${lm ? `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>` : ''}
         <button class="hist-add-btn" onclick="addHistSeq('${entry.id}','${entry.work_date}')">+ Ajouter une séquence</button>
         ${!entry.is_complete && seqs.length ? `<button class="hist-finish-btn" onclick="finishHistDay('${entry.id}',this)">✓ Terminer ma journée</button>` : ''}
         ${!entry.is_complete && !seqs.length ? `<button class="hist-delete-btn" onclick="deleteHistDay('${entry.id}','${entry.work_date}',this)">Supprimer cette journée</button>` : ''}
@@ -1263,7 +1275,6 @@ function renderHistory() {
 // ADD FORM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function showForm() {
-  if (S.dayEntry?.is_complete) return;
   document.getElementById('add-form').classList.remove('hidden');
   document.getElementById('btn-add').classList.add('hidden');
   document.getElementById('f-activity').value = '';
@@ -1367,9 +1378,6 @@ function setDone() {
   document.getElementById('done-banner').classList.remove('hidden');
   document.getElementById('done-sub').textContent =
     `Total : ${fmtDur(totalToday())} · Merci !`;
-  document.getElementById('btn-add').classList.add('hidden');
-  document.getElementById('add-form').classList.add('hidden');
-  document.querySelectorAll('.seq-del').forEach(b => b.disabled = true);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1489,14 +1497,22 @@ async function saveTodaySeq(seqId) {
   if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
   if (hasOverlap(S.sequences, start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
 
+  const s = S.sequences.find(s => s.id === seqId);
+  const now = new Date().toISOString();
+  await db.from('sequence_edits').insert({
+    sequence_id: seqId, edited_by: 'employee', edited_at: now,
+    prev_start_time: s?.start_time, prev_end_time: s?.end_time,
+    prev_activity_id: s?.activity_id, prev_parcel_id: s?.parcel_id, prev_comment: s?.comment
+  });
+
   const { error } = await db.from('work_sequences').update({
-    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com,
+    last_edited_by: 'employee', last_edited_at: now
   }).eq('id', seqId);
 
   if (error) { toast('❌ Erreur'); return; }
 
-  const s = S.sequences.find(s => s.id === seqId);
-  if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; }
+  if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; s.last_edited_by='employee'; s.last_edited_at=now; }
   closeModal();
   renderSeqs();
   toast('✓ Modification enregistrée');
@@ -1542,8 +1558,21 @@ async function saveHistSeq(seqId) {
   const _histEntry = S.history.find(e => (e.work_sequences||[]).some(s => s.id === seqId));
   if (_histEntry && hasOverlap(_histEntry.work_sequences||[], start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
 
+  let prevSeq = null;
+  for (const e of S.history) {
+    const s = (e.work_sequences||[]).find(s => s.id === seqId);
+    if (s) { prevSeq = s; break; }
+  }
+  const now = new Date().toISOString();
+  await db.from('sequence_edits').insert({
+    sequence_id: seqId, edited_by: 'employee', edited_at: now,
+    prev_start_time: prevSeq?.start_time, prev_end_time: prevSeq?.end_time,
+    prev_activity_id: prevSeq?.activity_id, prev_parcel_id: prevSeq?.parcel_id, prev_comment: prevSeq?.comment
+  });
+
   const { error } = await db.from('work_sequences').update({
-    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com,
+    last_edited_by: 'employee', last_edited_at: now
   }).eq('id', seqId);
 
   if (error) { toast('❌ Erreur'); return; }
@@ -1551,7 +1580,7 @@ async function saveHistSeq(seqId) {
   let modEntryId = null;
   for (const e of S.history) {
     const s = (e.work_sequences||[]).find(s => s.id === seqId);
-    if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; modEntryId = e.id; break; }
+    if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; s.last_edited_by='employee'; s.last_edited_at=now; modEntryId = e.id; break; }
   }
   if (modEntryId) setLM(modEntryId);
   closeModal();
@@ -1852,8 +1881,18 @@ async function saveCalSeq(seqId, workDate) {
   const com   = document.getElementById('m-com').value.trim() || null;
   if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
   if (S.calEntry && hasOverlap(S.calEntry.work_sequences||[], start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
+
+  const prevSeq = (S.calEntry?.work_sequences||[]).find(s => s.id === seqId);
+  const now = new Date().toISOString();
+  await db.from('sequence_edits').insert({
+    sequence_id: seqId, edited_by: 'employee', edited_at: now,
+    prev_start_time: prevSeq?.start_time, prev_end_time: prevSeq?.end_time,
+    prev_activity_id: prevSeq?.activity_id, prev_parcel_id: prevSeq?.parcel_id, prev_comment: prevSeq?.comment
+  });
+
   const { error } = await db.from('work_sequences').update({
-    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com,
+    last_edited_by: 'employee', last_edited_at: now
   }).eq('id', seqId);
   if (error) { toast('❌ Erreur'); return; }
   if (S.calEntry) setLM(S.calEntry.id);

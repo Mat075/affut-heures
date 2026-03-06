@@ -1032,6 +1032,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
                   <th>Parcelle</th>
                   <th>Commentaire</th>
                   <th>Statut</th>
+                  <th>Dernière modif.</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1415,7 +1416,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     async function loadSaisies() {
       const tbody = document.getElementById('saisies-tbody');
-      tbody.innerHTML = '<tr><td colspan="9" class="loading-table">Chargement…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="loading-table">Chargement…</td></tr>';
 
       const dateStart = document.getElementById('f-date-start').value;
       const dateEnd = document.getElementById('f-date-end').value;
@@ -1447,7 +1448,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
         rows.length ? `${rows.length} ligne(s) affichée(s)` : '';
 
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-table">Aucune saisie pour cette période</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-table">Aucune saisie pour cette période</td></tr>';
         return;
       }
 
@@ -1471,10 +1472,88 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
       <td><span class="badge ${entry?.is_complete ? 'badge-done' : 'badge-draft'}">
         ${entry?.is_complete ? 'Validée' : 'En cours'}
       </span></td>
+      <td style="font-size:11px;color:${seq.last_edited_by==='admin'?'#7c3aed':seq.last_edited_by==='employee'?'#6b7280':'#d1d5db'};white-space:nowrap">
+        ${seq.last_edited_by==='admin' ? `✏️ Isabelle<br>${fmtDateTime(seq.last_edited_at)}` : seq.last_edited_by==='employee' ? `✏️ Salarié<br>${fmtDateTime(seq.last_edited_at)}` : '—'}
+        ${seq.admin_locked ? '<br>🔒' : ''}
+      </td>
       <td><button class="btn btn-ghost btn-sm" onclick="editSeq('${seq.id}')">✏️</button></td>
     `;
         tbody.appendChild(tr);
       });
+    }
+
+    function editSeq(seqId) {
+      const seq = A.allSeqs.find(s => s.id === seqId);
+      if (!seq) return;
+      const act = A.activities.find(a => a.id == seq.activity_id);
+      document.getElementById('modal-title').textContent = 'Modifier la séquence';
+      document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex;gap:8px">
+          <input type="time" id="es-start" class="modal-input" value="${fmtTime(seq.start_time)}" style="flex:1">
+          <input type="time" id="es-end"   class="modal-input" value="${fmtTime(seq.end_time)}"   style="flex:1">
+        </div>
+        <select id="es-act" class="modal-input">
+          ${A.activities.map(a=>`<option value="${a.id}" ${a.id==seq.activity_id?'selected':''}>${esc(a.name)}</option>`).join('')}
+        </select>
+        <select id="es-par" class="modal-input">
+          <option value="">— Aucune parcelle —</option>
+          ${A.parcels.map(p=>`<option value="${p.id}" ${p.id==seq.parcel_id?'selected':''}>${esc(p.cvi_number)} — ${esc(p.cepage||'')}</option>`).join('')}
+        </select>
+        <input type="text" id="es-com" class="modal-input" placeholder="Commentaire salarié" value="${esc(seq.comment||'')}">
+        <input type="text" id="es-acom" class="modal-input" placeholder="Justification Isabelle (optionnel)" style="border-color:#7c3aed">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px;cursor:pointer">
+          <input type="checkbox" id="es-lock" ${seq.admin_locked?'checked':''}>
+          Verrouiller définitivement cette séquence
+        </label>
+      `;
+      document.getElementById('modal-actions').innerHTML = `
+        <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSeqAdmin('${seqId}')">🗑 Supprimer</button>
+        <button class="btn btn-primary" onclick="saveSeqAdmin('${seqId}')">Enregistrer</button>
+      `;
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    async function saveSeqAdmin(seqId) {
+      const seq = A.allSeqs.find(s => s.id === seqId);
+      if (!seq) return;
+      const start = document.getElementById('es-start').value;
+      const end   = document.getElementById('es-end').value;
+      const actId = document.getElementById('es-act').value;
+      const parId = document.getElementById('es-par').value || null;
+      const com   = document.getElementById('es-com').value.trim() || null;
+      const acom  = document.getElementById('es-acom').value.trim() || null;
+      const locked = document.getElementById('es-lock').checked;
+
+      if (!start || !end || start >= end) { toast('⚠️ Heures invalides'); return; }
+
+      const now = new Date().toISOString();
+      await authClient.from('sequence_edits').insert({
+        sequence_id: seqId, edited_by: 'admin', edited_at: now, comment: acom,
+        prev_start_time: seq.start_time, prev_end_time: seq.end_time,
+        prev_activity_id: seq.activity_id, prev_parcel_id: seq.parcel_id, prev_comment: seq.comment
+      });
+
+      const { error } = await authClient.from('work_sequences').update({
+        start_time: start + ':00', end_time: end + ':00',
+        activity_id: actId, parcel_id: parId, comment: com,
+        last_edited_by: 'admin', last_edited_at: now,
+        admin_locked: locked, admin_comment: acom
+      }).eq('id', seqId);
+
+      if (error) { toast('❌ Erreur'); return; }
+      closeModal();
+      await loadSaisies();
+      toast('✓ Séquence modifiée');
+    }
+
+    async function deleteSeqAdmin(seqId) {
+      if (!confirm('Supprimer définitivement cette séquence ?')) return;
+      const { error } = await authClient.from('work_sequences').delete().eq('id', seqId);
+      if (error) { toast('❌ Erreur'); return; }
+      closeModal();
+      await loadSaisies();
+      toast('Séquence supprimée');
     }
 
     function resetFilters() {
@@ -1721,14 +1800,22 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
       const dateStart = document.getElementById('f-date-start').value || mondayISO();
       const dateEnd = document.getElementById('f-date-end').value || todayISO();
 
-      const { data } = await authClient.from('work_sequences')
-        .select(`*, day_entries!inner(work_date, lunch_start, lunch_end, is_complete, created_at, updated_at,
-             employees(first_name, last_name))`)
-        .gte('day_entries.work_date', dateStart)
-        .lte('day_entries.work_date', dateEnd)
-        .order('day_entries(work_date)', { ascending: true })
-        .order('start_time');
+      const [{ data }, { data: edits }] = await Promise.all([
+        authClient.from('work_sequences')
+          .select(`*, day_entries!inner(work_date, is_complete, created_at,
+               employees(first_name, last_name))`)
+          .gte('day_entries.work_date', dateStart)
+          .lte('day_entries.work_date', dateEnd)
+          .order('day_entries(work_date)', { ascending: true })
+          .order('start_time'),
+        authClient.from('sequence_edits')
+          .select(`*, work_sequences!inner(day_entries!inner(work_date, employees(first_name, last_name)))`)
+          .gte('work_sequences.day_entries.work_date', dateStart)
+          .lte('work_sequences.day_entries.work_date', dateEnd)
+          .order('edited_at', { ascending: true })
+      ]);
 
+      // Feuille principale
       const rows = (data || []).map(seq => {
         const entry = seq.day_entries;
         const emp = entry?.employees;
@@ -1746,21 +1833,44 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
           'Lieu-dit': par?.lieu_dit || '',
           'N° CVI': par?.cvi_number || '',
           'Cépage': par?.cepage || '',
-          'Commentaire': seq.comment || '',
-          'Statut': entry?.is_complete ? 'Validée' : 'En cours',
-          'Séquence saisie le': fmtDateTime(seq.created_at),
-          'Séquence modifiée le': fmtDateTime(seq.updated_at),
-          'Journée modifiée le': fmtDateTime(entry?.updated_at)
+          'Commentaire salarié': seq.comment || '',
+          'Statut journée': entry?.is_complete ? 'Validée' : 'En cours',
+          'Dernière modif. par': seq.last_edited_by === 'admin' ? 'Isabelle' : seq.last_edited_by === 'employee' ? 'Salarié' : '',
+          'Dernière modif. le': fmtDateTime(seq.last_edited_at),
+          'Justification Isabelle': seq.admin_comment || '',
+          'Verrouillé': seq.admin_locked ? 'Oui' : 'Non',
+          'Séquence créée le': fmtDateTime(seq.created_at),
         };
       });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
+      // Feuille historique des modifications
+      const histRows = (edits || []).map(e => {
+        const seq = e.work_sequences;
+        const emp = seq?.day_entries?.employees;
+        const act = A.activities.find(a => a.id == e.prev_activity_id);
+        return {
+          'Date journée': seq?.day_entries?.work_date || '',
+          'Salarié': emp ? `${emp.first_name} ${emp.last_name}`.trim() : '',
+          'Modifié par': e.edited_by === 'admin' ? 'Isabelle' : 'Salarié',
+          'Modifié le': fmtDateTime(e.edited_at),
+          'Justification': e.comment || '',
+          'Avant — Début': fmtTime(e.prev_start_time),
+          'Avant — Fin': fmtTime(e.prev_end_time),
+          'Avant — Activité': act?.name || '',
+          'Avant — Commentaire': e.prev_comment || '',
+        };
+      });
+
       const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 12) }));
       XLSX.utils.book_append_sheet(wb, ws, 'Heures');
 
-      // Auto column width
-      const colWidths = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 12) }));
-      ws['!cols'] = colWidths;
+      if (histRows.length) {
+        const wsH = XLSX.utils.json_to_sheet(histRows);
+        wsH['!cols'] = Object.keys(histRows[0] || {}).map(k => ({ wch: Math.max(k.length, 14) }));
+        XLSX.utils.book_append_sheet(wb, wsH, 'Historique modifications');
+      }
 
       const filename = `affut_heures_${dateStart}_${dateEnd}.xlsx`;
       XLSX.writeFile(wb, filename);
