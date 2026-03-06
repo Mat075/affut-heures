@@ -327,19 +327,6 @@
     }
     .btn-finish:not(:disabled):active { opacity: 0.85; transform: scale(0.98); }
 
-    /* ── LUNCH ───────────────────────────────────── */
-    .lunch-card {
-      background: var(--surface);
-      border-radius: var(--r);
-      border: 1px solid var(--border);
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      box-shadow: var(--shadow);
-    }
-    .lunch-label { font-size: 14px; font-weight: 700; white-space: nowrap; color: var(--text-muted); }
-
     /* ── BALANCE ──────────────────────────────────── */
     .balance-grid {
       display: grid;
@@ -553,8 +540,7 @@
         gap: 4px;
       }
       .time-arrow { text-align: left; padding: 0; font-size: 14px; }
-      .lunch-card { flex-direction: column; align-items: stretch; }
-      .modal-time-row {
+.modal-time-row {
         grid-template-columns: 1fr;
         gap: 4px;
       }
@@ -807,21 +793,6 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
       + Ajouter une séquence
     </button>
 
-    <!-- LUNCH -->
-    <div class="section-title mt-6">Pause déjeuner</div>
-    <div class="lunch-card">
-      <span class="lunch-label">Pause</span>
-      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:4px">
-        <select id="lunch-start-h" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
-        <select id="lunch-start-m" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
-      </div>
-      <div class="time-arrow" style="margin:0 4px">→</div>
-      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:4px">
-        <select id="lunch-end-h" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
-        <select id="lunch-end-m" class="form-control" style="text-align:center;font-weight:700;padding:12px 8px" onchange="onLunchChange()"></select>
-      </div>
-    </div>
-
     <!-- TOTAL -->
     <div class="total-card">
       <span class="total-label">Total journée</span>
@@ -1001,15 +972,11 @@ function toast(msg, dur=2500) {
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'), dur);
 }
-function lunchMinutes() {
-  const ls = getTime('lunch-start');
-  const le = getTime('lunch-end');
-  if (!ls || !le) return 0;
-  const m = minutes(ls, le);
-  return m > 0 ? m : 0;
+function isBreak(activityId) {
+  return !!(S.activities.find(a => a.id == activityId)?.is_break);
 }
 function totalToday() {
-  return Math.max(0, S.sequences.reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0));
+  return Math.max(0, S.sequences.filter(s=>!isBreak(s.activity_id)).reduce((a,s)=>a+minutes(s.start_time,s.end_time), 0));
 }
 function getMondayISO() {
   const d = new Date(); d.setHours(0,0,0,0);
@@ -1095,10 +1062,6 @@ function renderAll() {
 
   buildTimeSelect('f-start');
   buildTimeSelect('f-end');
-  buildTimeSelect('lunch-start');
-  buildTimeSelect('lunch-end');
-  if (S.dayEntry?.lunch_start) setTime('lunch-start', fmtTime(S.dayEntry.lunch_start));
-  if (S.dayEntry?.lunch_end)   setTime('lunch-end',   fmtTime(S.dayEntry.lunch_end));
 
   buildActivitySelect();
   buildParcelSelect();
@@ -1184,8 +1147,7 @@ function renderHistory() {
   }
   S.history.forEach(entry => {
     const seqs     = entry.work_sequences || [];
-    const tot      = seqs.reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
-    const hasLunch = entry.lunch_start && entry.lunch_end;
+    const tot      = seqs.filter(s=>!isBreak(s.activity_id)).reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
     const lm = getLM(entry.id);
 
     const item = document.createElement('div');
@@ -1205,9 +1167,6 @@ function renderHistory() {
             <button class="hist-edit-btn" onclick="editHistSeq('${s.id}','${entry.id}')">✏️</button>
           </div>`;
         }).join('')}
-        ${hasLunch ? `<div class="hist-seq" style="pointer-events:none;">
-          <span>☕ ${fmtTime(entry.lunch_start)} → ${fmtTime(entry.lunch_end)}</span>
-        </div>` : ''}
         ${entry.completed_at ? `<div style="font-size:11px;color:var(--text-muted);padding-top:6px;margin-top:2px;border-top:1px solid #F5F0EA;">
           ✓ Validé le ${fmtDateTime(entry.completed_at)}
         </div>` : ''}
@@ -1310,26 +1269,6 @@ async function deleteSeq(id) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LUNCH
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let lunchTimer;
-async function onLunchChange() {
-  document.getElementById('total').textContent = fmtDur(totalToday());
-  clearTimeout(lunchTimer);
-  lunchTimer = setTimeout(async () => {
-    if (!S.dayEntry) return;
-    const ls = getTime('lunch-start') || null;
-    const le = getTime('lunch-end')   || null;
-    await db.from('day_entries').update({
-      lunch_start: ls ? ls + ':00' : null,
-      lunch_end:   le ? le + ':00' : null
-    }).eq('id', S.dayEntry.id);
-    S.dayEntry.lunch_start = ls ? ls + ':00' : null;
-    S.dayEntry.lunch_end   = le ? le + ':00' : null;
-  }, 800);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FINISH DAY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function onFinish() {
@@ -1388,14 +1327,14 @@ async function loadBalance() {
       .lte('work_date', yesterday);
 
     for (const e of entries || []) {
-      const seqMin = (e.work_sequences || []).reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
+      const seqMin = (e.work_sequences || []).filter(s=>!isBreak(s.activity_id)).reduce((a,s) => a + minutes(s.start_time, s.end_time), 0);
       const dayMin = Math.max(0, seqMin);
       if (e.work_date >= weekStart)  weekMin  += dayMin;
       if (e.work_date >= monthStart) monthMin += dayMin;
     }
   }
 
-  // Today's live data (lunch not deducted — stored for admin tracking only)
+  // Today's live data
   if (S.sequences.length > 0) {
     const todayMin = Math.max(0, S.sequences.reduce((a,s) => a + minutes(s.start_time, s.end_time), 0));
     if (today >= weekStart)  weekMin  += todayMin;
@@ -1538,7 +1477,7 @@ function addHistSeq(entryId, workDate) { openAddSeqModal(entryId, workDate, fals
 async function finishHistDay(entryId, btn) {
   const entry = S.history.find(e => e.id === entryId);
   if (!entry) return;
-  const tot = (entry.work_sequences || []).reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
+  const tot = (entry.work_sequences || []).filter(s=>!isBreak(s.activity_id)).reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
   if (!confirm(`Valider la journée du ${fmtDateLong(entry.work_date)} ?\n\nTotal : ${fmtDur(tot)}`)) return;
   const { error } = await db.from('day_entries')
     .update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', entryId);
@@ -1721,7 +1660,7 @@ function renderCalResult(iso, entry) {
         <button class="hist-edit-btn" onclick="editCalSeq('${s.id}','${iso}')">✏️</button>
       </div>`;
     });
-    const tot = seqs.reduce((a, s) => a + minutes(s.start_time, s.end_time), 0);
+    const tot = seqs.filter(s=>!isBreak(s.activity_id)).reduce((a, s) => a + minutes(s.start_time, s.end_time), 0);
     html += `<div style="font-size:13px;font-weight:700;color:var(--accent);padding:5px 0">${fmtDur(Math.max(0, tot))}</div>`;
   }
   if (lm) html += `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>`;
