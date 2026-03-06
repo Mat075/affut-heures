@@ -417,7 +417,9 @@
       cursor: pointer;
     }
     .hist-date { font-size: 15px; font-weight: 600; text-transform: capitalize; }
-    .hist-total { font-size: 15px; color: var(--accent); font-weight: 700; }
+    .hist-total { font-size: 15px; font-weight: 700; }
+    .hist-total.is-done    { color: #15803d; }
+    .hist-total.is-pending { color: #d97706; }
     .hist-finish-btn {
       margin-top: 8px; padding: 12px; width: 100%;
       background: var(--success); color: white;
@@ -609,8 +611,8 @@
     .cal-day.today    { background: var(--primary); color: white; font-weight: 800; }
     .cal-day.selected { background: var(--accent);  color: white; font-weight: 700; }
     .cal-day.future   { color: #D8D0C8; pointer-events: none; }
-    .cal-day.has-seqs { background: #dcfce7; color: #15803d; font-weight: 700; }
-    .cal-day.done     { background: #fce7f3; color: var(--accent); font-weight: 700; }
+    .cal-day.has-seqs { background: #fef3c7; color: #d97706; font-weight: 700; }
+    .cal-day.done     { background: #dcfce7; color: #15803d; font-weight: 700; }
     .cal-day:not(.future):not(.today):not(.selected):hover { background: #EEF0F8; }
     .cal-result { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
     .cal-result-date { font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 8px; text-transform: capitalize; }
@@ -1155,7 +1157,7 @@ function renderHistory() {
     item.innerHTML = `
       <div class="hist-header">
         <span class="hist-date">${fmtDateLong(entry.work_date)}</span>
-        <span class="hist-total">${fmtDur(Math.max(0,tot))} ${entry.is_complete ? '✓' : ''}</span>
+        <span class="hist-total ${entry.is_complete ? 'is-done' : 'is-pending'}">${fmtDur(Math.max(0,tot))} ${entry.is_complete ? '✓' : ''}</span>
       </div>
       <div class="hist-body" id="hb-${entry.id}">
         ${seqs.map(s=>{
@@ -1488,6 +1490,7 @@ async function finishHistDay(entryId, btn) {
   const histItem = btn.closest('.hist-item');
   const totalEl = histItem.querySelector('.hist-total');
   totalEl.textContent = fmtDur(Math.max(0, tot)) + ' ✓';
+  totalEl.classList.replace('is-pending', 'is-done');
   btn.remove();
   toast('✅ Journée validée !', 3000);
 }
