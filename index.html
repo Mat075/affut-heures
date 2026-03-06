@@ -1784,7 +1784,9 @@ function renderCal() {
     const iso = `${CAL.year}-${p2(CAL.month + 1)}-${p2(d)}`;
     const el  = document.createElement('div');
     el.className = 'cal-day'; el.textContent = d;
+    const MIN_DATE = '2026-03-01';
     if      (iso > today)                 el.classList.add('future');
+    else if (iso < MIN_DATE)              el.classList.add('future');
     else if (iso === CAL.selectedDate)    el.classList.add('selected');
     else if (iso === today)               el.classList.add('today');
     else {
@@ -1797,6 +1799,8 @@ function renderCal() {
 
 function calPrevMonth() {
   if (--CAL.month < 0) { CAL.month = 11; CAL.year--; }
+  // Bloquer avant mars 2026
+  if (CAL.year < 2026 || (CAL.year === 2026 && CAL.month < 2)) { CAL.month = 2; CAL.year = 2026; }
   renderCal();
 }
 function calNextMonth() {

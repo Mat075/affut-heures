@@ -434,6 +434,10 @@
       color: #856404;
     }
 
+    .bal-pos  { color: #15803d; font-weight: 800; }
+    .bal-neg  { color: #dc2626; font-weight: 800; }
+    .bal-zero { color: var(--text-muted); font-weight: 700; }
+
     .empty-table {
       text-align: center;
       padding: 40px;
@@ -972,6 +976,32 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
             </div>
           </div>
 
+          <!-- SOLDES SALARIÉS -->
+          <div class="panel-title" style="font-size:16px;margin-bottom:10px;" id="balances-title">
+            Soldes salariés
+          </div>
+          <div id="balances-wrap" class="table-wrap" style="margin-bottom:24px">
+            <table id="balances-table">
+              <thead>
+                <tr>
+                  <th>Salarié</th>
+                  <th>Contrat</th>
+                  <th>Objectif / sem.</th>
+                  <th>Heures saisies</th>
+                  <th>Heures théoriques</th>
+                  <th>Solde cumulé</th>
+                  <th>Ajuster</th>
+                </tr>
+              </thead>
+              <tbody id="balances-tbody">
+                <tr><td colspan="7" class="loading-table">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="eom-alert" class="hidden" style="background:#fef3c7;border:2px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;font-weight:700;color:#92400e;">
+            📅 Dernier jour du mois — pensez à faire le point sur les soldes avec vos salariés avant de clore le mois.
+          </div>
+
           <div class="panel-title" style="font-size:16px;margin-bottom:14px;">Saisies d'aujourd'hui</div>
           <div class="table-wrap">
             <table id="today-table">
@@ -1333,6 +1363,7 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
       });
 
       await loadDashboard();
+      await loadBalances();
       await loadSaisies();
       renderEmployees();
       renderParcels();
@@ -1409,6 +1440,140 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     `;
         tbody.appendChild(tr);
       });
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // SOLDES SALARIÉS
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    function countWorkdays(fromISO, toISO) {
+      let count = 0;
+      const d = new Date(fromISO + 'T12:00:00');
+      const end = new Date(toISO + 'T12:00:00');
+      while (d <= end) {
+        const dow = d.getDay();
+        if (dow >= 1 && dow <= 5) count++;
+        d.setDate(d.getDate() + 1);
+      }
+      return count;
+    }
+
+    async function loadBalances() {
+      const tbody = document.getElementById('balances-tbody');
+      tbody.innerHTML = '<tr><td colspan="7" class="loading-table">Chargement…</td></tr>';
+
+      const today = todayISO();
+
+      // Alerte fin de mois
+      const lastDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+        .toISOString().slice(0, 10);
+      if (today === lastDayOfMonth) {
+        document.getElementById('eom-alert').classList.remove('hidden');
+      }
+
+      // Charger toutes les séquences depuis balance_start_date par salarié
+      const { data: seqData } = await authClient.from('work_sequences')
+        .select(`id, start_time, end_time, activity_id,
+          day_entries!inner(work_date, employee_id, employees(id, first_name, last_name, weekly_hours_target, balance_offset_minutes, balance_start_date, contract_type))`)
+        .gte('day_entries.work_date', '2026-03-01')
+        .lte('day_entries.work_date', today);
+
+      // Charger les ajustements manuels
+      const { data: adjData } = await authClient.from('balance_adjustments')
+        .select('*').lte('adjusted_at', today);
+
+      // Charger les IDs d'activités pause
+      const breakIds = new Set((A.activities || []).filter(a => a.is_break).map(a => a.id));
+
+      // Grouper par salarié
+      const empMap = {};
+      (seqData || []).forEach(seq => {
+        const entry = seq.day_entries;
+        const emp = entry?.employees;
+        if (!emp) return;
+        if (!empMap[emp.id]) {
+          empMap[emp.id] = { emp, workedMin: 0 };
+        }
+        if (!breakIds.has(seq.activity_id)) {
+          empMap[emp.id].workedMin += calcMin(seq.start_time, seq.end_time);
+        }
+      });
+
+      // Ajouter les salariés sans saisie
+      A.employees.filter(e => e.is_active).forEach(emp => {
+        if (!empMap[emp.id]) empMap[emp.id] = { emp, workedMin: 0 };
+      });
+
+      tbody.innerHTML = '';
+      Object.values(empMap).forEach(({ emp, workedMin }) => {
+        const startDate = emp.balance_start_date || '2026-03-01';
+        const weeklyH   = parseFloat(emp.weekly_hours_target) || 35;
+        const offsetMin = emp.balance_offset_minutes || 0;
+        const isCDI     = (emp.contract_type || 'cdi') === 'cdi';
+
+        // Ajustements manuels cumulés
+        const adjMin = (adjData || [])
+          .filter(a => a.employee_id === emp.id)
+          .reduce((s, a) => s + a.delta_minutes, 0);
+
+        // Heures théoriques (CDI seulement)
+        let theoreticalMin = 0;
+        if (isCDI) {
+          const days = countWorkdays(startDate, today);
+          theoreticalMin = Math.round(days * (weeklyH / 5) * 60);
+        }
+
+        const balance = offsetMin + adjMin + workedMin - theoreticalMin;
+        const sign = balance >= 0 ? '+' : '';
+        const cls  = balance > 0 ? 'bal-pos' : balance < 0 ? 'bal-neg' : 'bal-zero';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="td-name">${esc(emp.first_name)} ${esc(emp.last_name)}</td>
+          <td><span class="badge ${isCDI ? 'badge-done' : 'badge-draft'}">${isCDI ? 'CDI' : 'Saisonnier'}</span></td>
+          <td>${weeklyH}h</td>
+          <td>${fmtDur(workedMin)}</td>
+          <td>${isCDI ? fmtDur(theoreticalMin) : '—'}</td>
+          <td><strong class="${cls}">${sign}${(balance / 60).toFixed(2).replace('.', ',')} h</strong></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openAdjust('${emp.id}','${esc(emp.first_name)} ${esc(emp.last_name)}')">± Ajuster</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (!tbody.children.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-table">Aucun salarié actif</td></tr>';
+      }
+    }
+
+    function openAdjust(empId, empName) {
+      document.getElementById('modal-title').textContent = `Ajustement solde — ${empName}`;
+      document.getElementById('modal-body').innerHTML = `
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+          Entrez un delta en heures (ex : <strong>+2.50</strong> ou <strong>-1.25</strong>).
+        </p>
+        <input type="number" id="adj-delta" class="modal-input" placeholder="+0.00 ou -0.00" step="0.25">
+        <input type="date"   id="adj-date"  class="modal-input" value="${todayISO()}">
+        <input type="text"   id="adj-com"   class="modal-input" placeholder="Commentaire (optionnel)">
+      `;
+      document.getElementById('modal-actions').innerHTML = `
+        <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveAdjust('${empId}')">Enregistrer</button>
+      `;
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    async function saveAdjust(empId) {
+      const deltaH  = parseFloat(document.getElementById('adj-delta').value);
+      const date    = document.getElementById('adj-date').value;
+      const comment = document.getElementById('adj-com').value.trim() || null;
+      if (isNaN(deltaH) || deltaH === 0) { toast('⚠️ Entrez un delta non nul'); return; }
+      if (!date) { toast('⚠️ Date requise'); return; }
+      const deltaMin = Math.round(deltaH * 60);
+      const { error } = await authClient.from('balance_adjustments')
+        .insert({ employee_id: empId, adjusted_at: date, delta_minutes: deltaMin, comment });
+      if (error) { toast('❌ Erreur'); return; }
+      closeModal();
+      await loadBalances();
+      toast('✓ Ajustement enregistré');
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1654,12 +1819,11 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
           </div>
         </div>
         <div class="emp-setting-group">
-          <div class="emp-setting-label">Ajustement solde</div>
-          <div class="emp-setting-row">
-            <input type="number" class="emp-setting-input" id="bo-${emp.id}"
-              value="${balOffset}" step="15" placeholder="0">
-            <span class="emp-setting-unit">min</span>
-          </div>
+          <div class="emp-setting-label">Type contrat</div>
+          <select class="emp-setting-input" id="ct-${emp.id}" style="padding:4px 6px">
+            <option value="cdi"      ${(emp.contract_type||'cdi')==='cdi'      ? 'selected' : ''}>CDI</option>
+            <option value="seasonal" ${(emp.contract_type||'cdi')==='seasonal' ? 'selected' : ''}>Saisonnier</option>
+          </select>
         </div>
         <div style="grid-column:1/-1;margin-top:4px">
           <button class="btn btn-primary btn-sm" style="width:100%" onclick="saveEmpSettings('${emp.id}')">
@@ -1673,19 +1837,17 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     }
 
     async function saveEmpSettings(id) {
-      const whInput = document.getElementById('wh-' + id);
-      const boInput = document.getElementById('bo-' + id);
-      const wh = parseFloat(whInput.value);
-      const bo = parseInt(boInput.value) || 0;
+      const wh = parseFloat(document.getElementById('wh-' + id).value);
+      const ct = document.getElementById('ct-' + id).value;
       if (isNaN(wh) || wh <= 0) { toast('⚠️ Heures invalides'); return; }
 
       const { error } = await authClient.from('employees')
-        .update({ weekly_hours_target: wh, balance_offset_minutes: bo })
+        .update({ weekly_hours_target: wh, contract_type: ct })
         .eq('id', id);
 
       if (error) { toast('❌ Erreur enregistrement'); return; }
       const emp = A.employees.find(e => e.id === id);
-      if (emp) { emp.weekly_hours_target = wh; emp.balance_offset_minutes = bo; }
+      if (emp) { emp.weekly_hours_target = wh; emp.contract_type = ct; }
       toast(`✓ Paramètres enregistrés`);
     }
 
