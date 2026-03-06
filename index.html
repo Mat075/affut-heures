@@ -143,6 +143,22 @@
     .seq-del:active { color: var(--danger); }
     .seq-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
 
+    /* ── REMINDER BANNER ─────────────────────────── */
+    .reminder-banner {
+      background: #fffbeb;
+      border-bottom: 2px solid #f59e0b;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: #92400e;
+    }
+    .reminder-banner:active { background: #fef3c7; }
+    .reminder-banner span { flex: 1; }
+
     /* ── EMPTY STATE ────────────────────────────── */
     .empty {
       text-align: center;
@@ -746,6 +762,8 @@ l-47 100 134 275 c74 151 195 398 269 549 75 151 163 332 197 403 34 70 65
     <div class="header-date" id="h-date"></div>
   </div>
 
+  <div id="reminder-banner" class="reminder-banner hidden" onclick="toggleCalendar()" role="alert"></div>
+
   <div class="main">
 
     <!-- SEQUENCES -->
@@ -1021,13 +1039,56 @@ async function init() {
     S.parcels    = parcels || [];
 
     await loadToday();
-    await Promise.all([loadHistory(), loadBalance()]);
+    await Promise.all([loadHistory(), loadBalance(), loadWeekReminder()]);
     renderAll();
 
   } catch(e) {
     console.error(e);
     showError('Erreur de connexion. Vérifiez votre réseau.');
   }
+}
+
+async function loadWeekReminder() {
+  // Jours ouvrés (lun-ven) de la semaine en cours, de lundi à hier
+  const today = new Date();
+  const todayStr = todayISO();
+  const dow = today.getDay(); // 0=dim, 1=lun…
+  const mondayOffset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + mondayOffset);
+
+  const workdays = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    if (iso < todayStr) workdays.push(iso);
+  }
+  if (!workdays.length) return; // lundi = premier jour, rien à rappeler
+
+  const { data } = await db.from('day_entries')
+    .select('work_date, is_complete, work_sequences(id)')
+    .eq('employee_id', S.employee.id)
+    .in('work_date', workdays);
+
+  const entries = data || [];
+  const incomplete = workdays.filter(iso => {
+    const e = entries.find(e => e.work_date === iso);
+    if (!e) return true; // journée absente
+    if (e.is_complete) return false; // validée → ok
+    if ((e.work_sequences || []).length === 0) return false; // vide = pas encore commencée, pas de rappel
+    return true; // a des séquences mais pas validée
+  });
+
+  if (!incomplete.length) return;
+
+  const banner = document.getElementById('reminder-banner');
+  const n = incomplete.length;
+  const label = n === 1
+    ? `${DAYS[new Date(incomplete[0] + 'T12:00:00').getDay()]} non finalisé — pensez à valider vos heures`
+    : `${n} journées non finalisées cette semaine — pensez à valider vos heures`;
+  banner.innerHTML = `<span>⚠️ ${label}</span><span style="font-size:16px;opacity:0.6">›</span>`;
+  banner.classList.remove('hidden');
 }
 
 async function loadToday() {
