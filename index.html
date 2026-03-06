@@ -141,6 +141,7 @@
       margin-top: -2px;
     }
     .seq-del:active { color: var(--danger); }
+    .seq-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
 
     /* ── EMPTY STATE ────────────────────────────── */
     .empty {
@@ -1136,8 +1137,12 @@ function renderSeqs() {
           ${seq.comment ? `<div class="seq-comment">💬 ${esc(seq.comment)}</div>` : ''}
           <div class="seq-duration">⏱ ${fmtDur(dur)}</div>
         </div>
-        <button class="seq-del" title="Supprimer" ${done?'disabled':''} data-id="${seq.id}">×</button>
+        <div class="seq-actions">
+          ${!done ? `<button class="hist-edit-btn" title="Modifier" data-edit="${seq.id}">✏️</button>` : ''}
+          <button class="seq-del" title="Supprimer" ${done?'disabled':''} data-id="${seq.id}">×</button>
+        </div>
       `;
+      if (!done) card.querySelector(`[data-edit="${seq.id}"]`).onclick = () => editTodaySeq(seq.id);
       card.querySelector('.seq-del').onclick = () => deleteSeq(seq.id);
       list.appendChild(card);
     });
@@ -1389,6 +1394,52 @@ function renderBalance() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EDIT HISTORY SEQUENCES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function editTodaySeq(seqId) {
+  const seq = S.sequences.find(s => s.id === seqId);
+  if (!seq) return;
+  document.getElementById('modal-title').textContent = 'Modifier la séquence';
+  document.getElementById('modal-body').innerHTML = `
+    ${timeSelectHTML('m-start', fmtTime(seq.start_time), 'modal-time-select')}
+    ${timeSelectHTML('m-end',   fmtTime(seq.end_time),   'modal-time-select')}
+    <select id="m-act" class="modal-input">
+      ${S.activities.map(a=>`<option value="${a.id}" ${a.id==seq.activity_id?'selected':''}>${a.name}</option>`).join('')}
+    </select>
+    <select id="m-par" class="modal-input">
+      <option value="">— Aucune —</option>
+      ${S.parcels.map(p=>`<option value="${p.id}" ${p.id==seq.parcel_id?'selected':''}>${p.cvi_number} — ${p.cepage}</option>`).join('')}
+    </select>
+    <input type="text" id="m-com" class="modal-input" placeholder="Commentaire" value="${seq.comment||''}">
+  `;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="modal-btn modal-btn-ghost"   onclick="closeModal()">Annuler</button>
+    <button class="modal-btn modal-btn-primary" onclick="saveTodaySeq('${seqId}')">Enregistrer</button>
+  `;
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+async function saveTodaySeq(seqId) {
+  const start = getTime('m-start') + ':00';
+  const end   = getTime('m-end')   + ':00';
+  const actId = document.getElementById('m-act').value;
+  const parId = document.getElementById('m-par').value || null;
+  const com   = document.getElementById('m-com').value.trim() || null;
+
+  if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (hasOverlap(S.sequences, start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
+
+  const { error } = await db.from('work_sequences').update({
+    start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
+  }).eq('id', seqId);
+
+  if (error) { toast('❌ Erreur'); return; }
+
+  const s = S.sequences.find(s => s.id === seqId);
+  if (s) { s.start_time=start; s.end_time=end; s.activity_id=actId; s.parcel_id=parId; s.comment=com; }
+  closeModal();
+  renderSeqs();
+  toast('✓ Modification enregistrée');
+}
+
 function editHistSeq(seqId, entryId) {
   let seq = null;
   for (const e of S.history) {
