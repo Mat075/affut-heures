@@ -428,6 +428,14 @@
       font-family: inherit;
     }
     .hist-finish-btn:active { opacity: 0.85; transform: scale(0.98); }
+    .hist-delete-btn {
+      margin-top: 8px; padding: 12px; width: 100%;
+      background: transparent; color: #dc2626;
+      border: 1.5px solid #dc2626; border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit;
+    }
+    .hist-delete-btn:active { opacity: 0.85; transform: scale(0.98); }
     .hist-body {
       display: none;
       padding: 0 16px 14px;
@@ -1175,6 +1183,7 @@ function renderHistory() {
         ${lm ? `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>` : ''}
         <button class="hist-add-btn" onclick="addHistSeq('${entry.id}','${entry.work_date}')">+ Ajouter une séquence</button>
         ${!entry.is_complete && seqs.length ? `<button class="hist-finish-btn" onclick="finishHistDay('${entry.id}',this)">✓ Terminer ma journée</button>` : ''}
+        ${!entry.is_complete && !seqs.length ? `<button class="hist-delete-btn" onclick="deleteHistDay('${entry.id}','${entry.work_date}',this)">Supprimer cette journée</button>` : ''}
       </div>
     `;
     item.querySelector('.hist-header').onclick = () =>
@@ -1493,6 +1502,15 @@ async function finishHistDay(entryId, btn) {
   totalEl.classList.replace('is-pending', 'is-done');
   btn.remove();
   toast('✅ Journée validée !', 3000);
+}
+async function deleteHistDay(entryId, workDate, btn) {
+  if (!confirm(`Supprimer la journée du ${fmtDateLong(workDate)} ?\n\nElle disparaîtra de l'historique.`)) return;
+  const { error } = await db.from('day_entries').delete().eq('id', entryId);
+  if (error) { toast('❌ Erreur'); return; }
+  S.history = S.history.filter(e => e.id !== entryId);
+  if (CAL.days) delete CAL.days[workDate];
+  renderHistory();
+  toast('🗑️ Journée supprimée', 3000);
 }
 async function finishCalDay(entryId, iso, btn) {
   const entry = S.calEntry;
