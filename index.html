@@ -1251,6 +1251,15 @@ document.getElementById('f-activity').addEventListener('change', function() {
   document.getElementById('other-group').classList.toggle('hidden', !isOther);
 });
 
+
+// ── Détection de chevauchement ──────────────────────
+function hasOverlap(sequences, start, end, excludeId = null) {
+  return sequences.some(s => {
+    if (excludeId && s.id === excludeId) return false;
+    return start < s.end_time && end > s.start_time;
+  });
+}
+
 async function submitSeq() {
   const start = getTime('f-start');
   const end   = getTime('f-end');
@@ -1264,6 +1273,7 @@ async function submitSeq() {
   if (!actId)             { toast('⚠️ Choisissez une activité');   return; }
   if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
   if (act?.is_other && !other)  { toast('⚠️ Précisez l\'activité'); return; }
+  if (hasOverlap(S.sequences, start + ':00', end + ':00')) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
 
   const btn = document.getElementById('btn-submit');
   btn.textContent = '…'; btn.disabled = true;
@@ -1466,6 +1476,8 @@ async function saveHistSeq(seqId) {
   const com   = document.getElementById('m-com').value.trim() || null;
 
   if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  const _histEntry = S.history.find(e => (e.work_sequences||[]).some(s => s.id === seqId));
+  if (_histEntry && hasOverlap(_histEntry.work_sequences||[], start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
 
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
@@ -1573,6 +1585,8 @@ async function saveNewHistSeq(entryId, workDate, isCalEntry) {
 
   if (!actId)                               { toast('⚠️ Choisissez une activité');   return; }
   if (minutes(start+':00', end+':00') <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  const _newHistEntry = S.history.find(e => e.id === entryId);
+  if (_newHistEntry && hasOverlap(_newHistEntry.work_sequences||[], start+':00', end+':00')) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
 
   let dayEntryId = entryId || null;
   if (!dayEntryId) {
@@ -1746,6 +1760,7 @@ async function saveCalSeq(seqId, workDate) {
   const parId = document.getElementById('m-par').value || null;
   const com   = document.getElementById('m-com').value.trim() || null;
   if (minutes(start, end) <= 0) { toast('⚠️ Fin doit être après début'); return; }
+  if (S.calEntry && hasOverlap(S.calEntry.work_sequences||[], start, end, seqId)) { toast('⚠️ Cette séquence chevauche une séquence existante'); return; }
   const { error } = await db.from('work_sequences').update({
     start_time: start, end_time: end, activity_id: actId, parcel_id: parId, comment: com
   }).eq('id', seqId);
