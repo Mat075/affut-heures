@@ -1494,13 +1494,28 @@ async function finishHistDay(entryId, btn) {
   btn.remove();
   toast('✅ Journée validée !', 3000);
 }
+async function finishCalDay(entryId, iso, btn) {
+  const entry = S.calEntry;
+  if (!entry) return;
+  const tot = (entry.work_sequences || []).filter(s=>!isBreak(s.activity_id)).reduce((a,s) => a+minutes(s.start_time,s.end_time), 0);
+  if (!confirm(`Valider la journée du ${fmtDateLong(iso)} ?\n\nTotal : ${fmtDur(tot)}`)) return;
+  const { error } = await db.from('day_entries')
+    .update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', entryId);
+  if (error) { toast('❌ Erreur'); return; }
+  entry.is_complete = true;
+  entry.completed_at = new Date().toISOString();
+  if (CAL.days) CAL.days[iso] = 'done';
+  renderCal();
+  renderCalResult(iso, entry);
+  toast('✅ Journée validée !', 3000);
+}
 function addCalSeq(entryId, workDate)  { openAddSeqModal(entryId || null, workDate, true); }
 
 function openAddSeqModal(entryId, workDate, isCalEntry) {
   document.getElementById('modal-title').textContent = 'Ajouter · ' + fmtDateLong(workDate);
   document.getElementById('modal-body').innerHTML = `
-    ${timeSelectHTML('m-start', '08:00', 'modal-time-select')}
-    ${timeSelectHTML('m-end',   '',      'modal-time-select')}
+    ${timeSelectHTML('m-start', '', 'modal-time-select')}
+    ${timeSelectHTML('m-end',   '', 'modal-time-select')}
     <select id="m-act" class="modal-input">
       <option value="">— Activité —</option>
       ${S.activities.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}
@@ -1666,8 +1681,10 @@ function renderCalResult(iso, entry) {
     const tot = seqs.filter(s=>!isBreak(s.activity_id)).reduce((a, s) => a + minutes(s.start_time, s.end_time), 0);
     html += `<div style="font-size:13px;font-weight:700;color:var(--accent);padding:5px 0">${fmtDur(Math.max(0, tot))}</div>`;
   }
+  if (entry?.completed_at) html += `<div style="font-size:11px;color:var(--text-muted);padding-top:6px;margin-top:2px;border-top:1px solid #F5F0EA;">✓ Validé le ${fmtDateTime(entry.completed_at)}</div>`;
   if (lm) html += `<div class="hist-modified">🕐 Dernière saisie le ${fmtDateTime(lm)}</div>`;
   html += `<button class="hist-add-btn" onclick="addCalSeq('${entry?.id || ''}','${iso}')">+ Ajouter une séquence</button>`;
+  if (!entry?.is_complete && seqs.length) html += `<button class="hist-finish-btn" onclick="finishCalDay('${entry.id}','${iso}',this)">✓ Terminer ma journée</button>`;
   result.innerHTML = html;
 }
 
